@@ -3,6 +3,7 @@ package okay.tiny;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /** Algebraic effects on a free monad, the least of it: one file, Java 21, no threads, no reflection, no dependency. */
@@ -37,7 +38,9 @@ public final class Fx {
   public static <A, R> Comp<A, R> pure(A value) { return new Pure<>(value); }
 
   /** The row has the effect: that is the one bound, R extends F. */
-  public static <A, F, R extends F> Comp<A, R> perform(Op<A, F> op) { return new Perform<>(op); }
+  public static <A, F, R extends F> Comp<A, R> perform(Op<A, F> op) {
+    return new Perform<>(Objects.requireNonNull(op, "an operation"));
+  }
 
   /**
    * A handler of the effect F is a fold of the part it is around, with a state S. The part gives A, the handler B.
@@ -96,7 +99,8 @@ public final class Fx {
    */
   public static <F, S, A, B, R> Handler<F, A, B, R> folding(Class<F> effect, S state, BiFunction<S, A, B> ret,
                                                             Function<F, Case<F, S, B, R>> cases) {
-    return new Handler<>(effect, state, ret, cases);
+    return new Handler<>(Objects.requireNonNull(effect, "the effect's class"), state,
+        Objects.requireNonNull(ret, "ret"), Objects.requireNonNull(cases, "the clauses"));
   }
 
   /** A handler with no state that gives what its part gives: handling(Effect.class, op -> switch (op) { .. }). */
@@ -172,6 +176,7 @@ public final class Fx {
 
     /** A handler may itself ask only what stays: R. */
     public <V extends W, C> Handlers<R, V, A, C> handler(Handler<? super V, B, C, ? super R> handler) {
+      Objects.requireNonNull(handler, "a handler");
       return new Handlers<>(part -> new Part<>(handler, around.apply(part)));
     }
 
@@ -201,8 +206,14 @@ public final class Fx {
   }
 
   /** Runs a program with nothing left to ask. */
+  public static <A> A run(Comp<A, Object> program) { return run(program, null); }
+
+  /**
+   * Runs it under an observer: `see` is given every operation asked, as data, before it is answered — a log, a
+   * metric, an audit, a recording. What it throws stops the program there: an operation it refuses is not answered.
+   */
   @SuppressWarnings("unchecked")
-  public static <A> A run(Comp<A, Object> program) {
+  public static <A> A run(Comp<A, Object> program, Consumer<? super Op<?, ?>> see) {
     Comp<?, ?> now = program;
     Rest rest = null;                     // the steps of the part being run
     Around around = null;                 // that part, and those around it
@@ -239,6 +250,7 @@ public final class Fx {
           }
           case Perform<?, ?> p -> {
             Object op = asked = p.op();
+            if (see != null) see.accept(p.op());
             Around own = around;
             while (own != null && !own.handler.effect.isInstance(op)) own = own.outer;
             if (own == null) throw new IllegalStateException("no handler for " + op);

@@ -1,4 +1,4 @@
-// javac: method run in class
+// javac: no suitable method found for run
 package okay.tiny;
 
 import static okay.tiny.Fx.*;

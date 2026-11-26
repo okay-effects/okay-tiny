@@ -251,6 +251,27 @@ class ScenariosTest {
     return folding(Refusal.class, null, (s, a) -> Optional.of(a), op -> leave(Optional.empty()));
   }
 
+  /** The second argument of run: every operation asked, of every effect, in the order asked. */
+  @Test
+  void anObserverIsGivenEveryOperation() {
+    var seen = new ArrayList<Op<?, ?>>();
+    run(Fx.<Order>top().handler(stock(left)).handler(first()).handler(clockAt(7)).handle(place(good)), seen::add);
+    assertEquals(List.of(new Stock.Reserve("tea", 2), new Stock.Reserve("cup", 1), new Clock.Now()), seen);
+  }
+
+  /** What the observer throws stops the program there: the operation is not answered, and nothing after it is asked. */
+  @Test
+  void anObserverRefusesAnOperation() {
+    var seen = new ArrayList<Op<?, ?>>();
+    IllegalStateException refused = assertThrows(IllegalStateException.class, () ->
+        run(Fx.<Order>top().handler(stock(left)).handler(first()).handler(clockAt(7)).handle(place(good)), op -> {
+          if (op instanceof Stock.Reserve r && r.sku().equals("cup")) throw new IllegalStateException("no cups today");
+          seen.add(op);
+        }));
+    assertEquals("no cups today", refused.getMessage());
+    assertEquals(List.of(new Stock.Reserve("tea", 2)), seen);
+  }
+
   static <R extends Clock> Comp<Long, R> mapped(int left, long sum) {
     return left == 0 ? pure(sum)
         : perform(new Clock.Now()).map(t -> t + 1).map(t -> t - 1).flatMap(t -> mapped(left - 1, sum + t));
