@@ -180,6 +180,77 @@ class ScenariosTest {
     assertTrue(run(Fx.<Long>top().handler(clockAt(1)).handle(mapped(1_000_000, 0))) == 1_000_000);
   }
 
+  /** No switch: whatever operation of the effect is asked, the part is left with the value. */
+  @Test
+  void aClauseForAnyOperationLeavesThePart() {
+    Comp<Optional<Order>, Object> tried = Fx.<Order>top().handler(tryingAny())
+        .handler(stock(left)).handler(clockAt(1))
+        .handle(place(bad));
+    assertEquals(Optional.empty(), run(tried));
+  }
+
+  @Test
+  void whatIsToBeClosedIsClosedWhenThePartEnds() {
+    var log = new ArrayList<String>();
+    Comp<String, Object> inOrder = ensuring(
+        ensuring(Fx.<String, Object>pure("in").map(x -> { log.add(x); return x; }), () -> log.add("inner closed")),
+        () -> log.add("outer closed")).map(x -> { log.add("after"); return x; });
+    assertEquals("in", run(inOrder));
+    assertEquals(List.of("in", "inner closed", "outer closed", "after"), log);
+  }
+
+  /** A clause that does not go on with the rest: what the rest was to close is closed when that clause ends. */
+  @Test
+  void whatIsToBeClosedIsClosedWhenThePartIsLeft() {
+    var log = new ArrayList<String>();
+    Comp<String, Refusal> opened = ensuring(
+        perform(new Refusal.Invalid("f", "w")).map(v -> { log.add("never"); return "never"; }),
+        () -> log.add("closed"));
+    Comp<String, Object> left = Fx.<String>top().handler(leaving("left")).handle(opened)
+        .map(x -> { log.add("after"); return x; });
+    assertEquals("left", run(left));
+    assertEquals(List.of("closed", "after"), log);
+  }
+
+  /** Thrown on as it is, with a note of where the program was. */
+  @Test
+  void whatIsToBeClosedIsClosedUnderAnException() {
+    var log = new ArrayList<String>();
+    Comp<Order, Object> failing = Fx.<Order>top().handler(stock(left)).handler(first()).handler(clockAt(1))
+        .handle(ensuring(ensuring(place(bad), () -> log.add("inner closed")), () -> log.add("outer closed")));
+    BadRequest thrown = assertThrows(BadRequest.class, () -> run(failing));
+    assertEquals(List.of("inner closed", "outer closed"), log);
+    assertEquals(1, thrown.getSuppressed().length);
+    assertEquals("the program had last asked Invalid[field=email, why=required]; handlers in force, the nearest first:"
+        + " Stock Refusal Clock", thrown.getSuppressed()[0].getMessage());
+  }
+
+  /** A rest gone on with twice ends twice; one gone on with once and one left: once each. */
+  @Test
+  void aRestGoneOnWithTwiceIsClosedTwice() {
+    var log = new ArrayList<String>();
+    Comp<String, Choice> flip = ensuring(
+        perform(new Choice.Flip()).map(way -> { log.add("way " + way); return "" + way; }), () -> log.add("closed"));
+    assertEquals(List.of("true", "false"), run(Fx.<String>top().handler(bothWays()).handle(flip)));
+    assertEquals(List.of("way true", "closed", "way false", "closed"), log);
+  }
+
+  /** The rest is gone on with and then, further on, left: closed once, by what leaves it. */
+  @Test
+  void aRestGoneOnWithAndThenLeftIsClosedOnce() {
+    var log = new ArrayList<String>();
+    Comp<String, Object> program = Fx.<String>top().handler(leaving("left")).handler(counting())
+        .handle(ensuring(
+            perform(new Counter.Next()).flatMap(n -> perform(new Refusal.Invalid("f", "w"))).map(v -> "never"),
+            () -> log.add("closed")));
+    assertEquals("left", run(program));
+    assertEquals(List.of("closed"), log);
+  }
+
+  static <A, R> Handler<Refusal, A, Optional<A>, R> tryingAny() {
+    return folding(Refusal.class, null, (s, a) -> Optional.of(a), op -> leave(Optional.empty()));
+  }
+
   static <R extends Clock> Comp<Long, R> mapped(int left, long sum) {
     return left == 0 ? pure(sum)
         : perform(new Clock.Now()).map(t -> t + 1).map(t -> t - 1).flatMap(t -> mapped(left - 1, sum + t));

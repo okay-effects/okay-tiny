@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 180 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 235 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 
@@ -53,7 +53,9 @@ Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).h
 | `folding(Effect.class, state, ret, op -> switch (op) { .. })` | a handler: a fold of the part it is around |
 | `on(op, (state, k) -> ..)` | a clause: `k.apply(answer, nextState)` goes on with the rest — once, twice, or never |
 | `answer(op, value)` | the usual clause: answered where it is asked |
+| `leave(value)` | a clause for any operation of the effect: the part is left, with the value |
 | `handling(Effect.class, op -> switch (op) { .. })` | a handler with no state that gives what its part gives |
+| `ensuring(part, after)` | `after` runs when the part ends: with a value, left by a clause, or by an exception |
 | `Fx.<R, A>row().handler(h).handle(part)` | handlers around a part of a program; the row `R` is left |
 | `Fx.<A>top().handler(h).handle(program)` | around the whole program: nothing is left, and `run` takes it |
 
@@ -69,7 +71,7 @@ a value, never replayed). Its state is a value too: a rest gone on with twice ha
 ## Build
 
 ```
-./gradlew test                        # 17 scenarios, a real flow of seven effects, 22 programs javac must refuse
+./gradlew test                        # 23 scenarios, a real flow of seven effects, 22 programs javac must refuse
 ./gradlew jmh                         # ns an operation (JMH)
 ./gradlew jmh -Pbench=StateBench.counter
 ```

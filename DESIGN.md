@@ -62,6 +62,18 @@ One loop. The rest of the program is a stack of parts — one for each handler i
   changed in place once shared. So a state that moves on costs an assignment for the innermost handler and one
   copy of the array for another — not a copy of every part inside it.
 
+## 3a. Leaving, closing, failing
+
+- `leave(value)` is a clause for any operation of its effect. It has no operation to read the answer's type
+  from, so it cannot go on with the rest: it only leaves the part.
+- `ensuring(part, after)` puts a mark among the steps. The value passes it and `after` is run: the part has ended.
+  When a clause is given the rest, a mark with that rest is put under the clause; when the clause ends and the
+  rest was never gone on with, it was left, and the marks in it are run, the innermost first. A clause that only
+  goes on takes its mark off with it. Under an exception every mark still in the stack is run, and what a closing
+  throws is added to the exception.
+- A rest gone on with twice ends twice, and is closed twice. A rest kept and gone on with after its clause has
+  ended is closed when that clause ends, and again when it ends itself: do not keep one.
+
 ## 4. Tried, and left
 
 | Tried | Why it was left |
@@ -69,36 +81,39 @@ One loop. The rest of the program is a stack of parts — one for each handler i
 | a handler that only answers as a kind of its own, answered in place | one kind of handler; `answer` keeps the speed without a second kind |
 | `leaving(..)` and an opaque `End` for the part's value, so that the part's type is inferred | a clause that does not apply `k` says the same; the price is `A` written at `row()` |
 | sets of operations in the kernel (`perform(a, b)`, a function of answers, an `Iterable` of answers) | an operation that holds a list does it with no support |
-| one clause for the whole effect with `k.resume(op, answer)` | `k` stops being a function; kept in mind only for "any operation leaves the part" |
+| one clause for the whole effect with `k.resume(op, answer)` | `k` stops being a function; what it gave — any operation leaves the part — is `leave(value)` |
 | a block of named answers asked in rounds (`plan`) | it lived on sets of operations |
 | the state in the stack's records | a handler with a state outside six others cost 57 ns an operation, not 30 |
 | the effect's class read from an empty varargs array | see above |
 
 ## 5. What it costs
 
-JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 1.2 (`./gradlew jmh`):
+JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./gradlew jmh`):
 
 | | ns |
 |---|---|
-| `answer`, the handler the innermost of seven | 9.0 |
-| `answer`, the handler the outermost of seven | 14.7 |
-| an answer and two `map` | 18.2 |
-| a counter (a state that moves on at every operation), alone | 19.9 |
-| the counter the innermost of seven | 19.4 |
-| the counter the outermost of three | 23.8 |
-| the counter the outermost of seven | 32.5 |
+| `answer`, the handler the innermost of seven | 10.1 |
+| `answer`, the handler the outermost of seven | 15.1 |
+| an answer and two `map` | 20.5 |
+| a counter (a state that moves on at every operation), alone | 18.9 |
+| the counter the innermost of seven | 20.8 |
+| the counter the outermost of three | 29.5 |
+| the counter the outermost of seven | 32.9 |
 
 A free monad makes five or six small objects for an operation; that is the floor. Next to a query to a database
-it is nothing.
+it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark
+under every clause that is given the rest, and a test for marks at every step.
 
 ## 6. What is not here
 
 - **Direct style.** Without threads or a bytecode transformation there is none in Java; okay-java has it.
-- **Finalizers.** A part that is left, or an exception, closes nothing. Resources belong in handlers.
+- **Finalizers that ask.** `ensuring(part, after)` runs a `Runnable`: it closes, and asks no operation.
 - **The laws.** That `ret` and the clauses of a handler make a lawful monad is their author's: a clause that
   applies `k` twice and keeps one result passes the types.
 - **A handler generic in its effect that still knows its class** — it is given the class by its caller.
-- **Stack traces.** A failure inside a program shows the machine's loop, not the place in the program.
+- **Stack traces of the program.** A failure shows the machine's loop and the function that threw. What is added
+  to the exception (`Fx.Where`, suppressed; the exception itself is thrown on as it is) is the operation asked
+  last and the handlers in force — not the path through the program.
 
 ## 7. Open
 
