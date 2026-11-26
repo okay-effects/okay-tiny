@@ -175,9 +175,8 @@ second implementation of `Accounts` that wraps the first, a flag, and care that 
   `Refuse` leaves the part. If going on is wanted (collect every problem of a form), write the program so that
   it is harmless: check first, act after.
 - **Transactions.** `@Transactional` on the service method still works: the whole of `run` is inside it, on
-  one thread. A transaction around a *part* of a program is a handler whose clause goes on with the rest and
-  commits after it, with `ensuring` for the rollback; this library has not been tried with a container's
-  transaction manager, and `DESIGN.md` says so.
+  one thread. A transaction around a *part* of a program is `ensuring` around it. Both are run with Spring's
+  transaction manager and a database in [In a Spring Boot service](spring.md).
 - **What does not move.** A port that only returns values, has no cross-cutting code around it, and is not a
   pain in tests gains nothing. Move the use cases where a policy about "what happens after the answer" is
   written into the use case itself.

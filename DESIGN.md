@@ -122,4 +122,8 @@ under every clause that is given the rest, and a test for marks at every step.
 ## 7. Open
 
 It has been tried on one real flow, a booking of seven effects that was already written with effects
-(`Booking`). It has not been tried on a service of beans and transactions. That is the next thing to learn from.
+(`Booking`), and in a small Spring Boot service with a database, Spring's transactions and a controller
+(`spring-sample`, `docs/spring.md`). That one found nothing to change in the kernel: a program runs on the
+thread that called `run`, so what Spring binds to a thread is where the handlers expect it, and `ensuring` was
+enough for a transaction around a part. It has not been tried on a large code base, with JPA, or by a team.
+Those are the next things to learn from.

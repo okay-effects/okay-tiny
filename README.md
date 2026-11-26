@@ -109,6 +109,7 @@ The order of two handlers is the order of two monads (`StdTest`): a failure insi
 |---|---|
 | [The guide](docs/guide.md) | from nothing to an application, in order; every example is a test |
 | [From ports and adapters](docs/ports-and-adapters.md) | a service with interfaces and injection, moved in four steps |
+| [In a Spring Boot service](docs/spring.md) | beans, a database, Spring's transactions, a controller — a sample that runs |
 | [Reference](docs/reference.md) | every type and word, what javac refuses, what it costs |
 | [The machine](docs/machine.md) | for reviewing `Fx.java` |
 | [The design, and why](DESIGN.md) | the decisions, and what was tried and left |
