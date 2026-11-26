@@ -1,0 +1,104 @@
+# okay-tiny: guide for coding agents
+
+## For agents writing code with okay-tiny
+
+okay-tiny is algebraic effects for Java 21 in one file, `okay.tiny.Fx` (and the usual effects, `okay.tiny.Std`).
+A program is a value that asks operations of declared effects; a handler says what each means; the program's type
+says what it may ask, and javac refuses a program whose effects are not all handled. No dependency.
+
+```kotlin
+repositories { maven("https://okay-effects.github.io/okay-tiny/maven") }
+dependencies { implementation("io.github.okay-effects:okay-tiny:0.1.0") }
+```
+
+Or copy `Fx.java`: it is made to be read and owned.
+
+```java
+import static okay.tiny.Fx.*;
+
+// 1. an effect: a sealed interface; each operation a record that says the type of its answer and its effect
+sealed interface Stock {
+  record Reserve(String sku, int qty) implements Stock, Op<Boolean, Stock> {}
+}
+sealed interface Refusal {
+  record Invalid(String field, String why) implements Refusal, Op<Void, Refusal> {}
+}
+
+// 2. a program: Comp<A, R>; its row R is a type bounded by the effects it asks, in any order
+static <R extends Stock & Refusal> Comp<Order, R> place(Cart cart) {
+  return perform(new Stock.Reserve(cart.sku(), cart.qty())).flatMap(ok ->
+      ok ? pure(new Order(cart))
+          : perform(new Refusal.Invalid(cart.sku(), "out of stock")).map(x -> new Order(cart)));
+}
+
+// 3. a handler that only answers: a switch over the effect, whole — a missing operation does not compile
+static <B, R> Handler<Stock, B, B, R> stock(Map<String, Integer> left) {
+  return handling(Stock.class, op -> switch (op) {
+    case Stock.Reserve r -> answer(r, left.getOrDefault(r.sku(), 0) >= r.qty());
+  });
+}
+
+// 4. a handler in full is a fold: a state, what it gives where the part ends, a clause for each operation
+static <A, R> Handler<Refusal, A, Optional<A>, R> trying() {
+  return folding(Refusal.class, null, (s, a) -> Optional.of(a), op -> switch (op) {
+    case Refusal.Invalid i -> on(i, (s, k) -> pure(Optional.empty()));       // the rest is left
+  });
+}
+
+// 5. the handlers are put once, at the entry point; run takes only a program with nothing left to ask
+Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).handle(place(cart)));
+```
+
+| It needs | Write |
+|---|---|
+| only to answer | `handling(E.class, op -> switch (op) { case X x -> answer(x, value); })` |
+| a state | `folding(E.class, s0, (s, a) -> a, op -> switch (op) { case X x -> on(x, (s, k) -> k.apply(answer, next)); })` |
+| its own result | the second argument, `ret`: `(s, a) -> b` — the handler is `Handler<E, A, B, R>` |
+| to leave the part | a clause that does not apply `k`: `on(x, (s, k) -> pure(value))`; for any operation, `leave(value)` |
+| to go on more than once | `k.apply(a, s).flatMap(first -> k.apply(b, s).map(second -> ..))`: `k` is a value, never replayed |
+| to ask another effect | the clause is a program of the row that stays: `<R extends Clock> Handler<Mail, B, B, R>` |
+| to see every operation | `run(program, op -> ..)`; or, for one effect, a handler that asks the operation again outside |
+| to close something | `ensuring(part, () -> ..)`: at the end, when the part is left, under an exception |
+
+`Std`: `State<S>` (`get`, `put`, `update`; `state(initial)`), `Fail<E>` (`fail`; `option(E.class)`,
+`result(E.class)`), `Emit<X>` (`tell`; `told(X.class)`), `Env<E>` (`ask`; `env(value)`), `Choice`
+(`choose(options)`; `all()`).
+
+### Rules
+
+- Business logic is programs over declared effects. Real resources — a database, a client, a clock — are reached
+  only in handlers, which are made at the entry point.
+- `run` is called once, at the entry point (`main`, a request's handler, a test). Inside a program, put a handler
+  around a part with `Fx.<R, A>row().handler(h).handle(part)`: it is a program again.
+- Handlers are put innermost first; each is around those before it. The order is meaning: a failure inside a
+  state keeps the state, a state inside a failure is lost with the part.
+- Many at once is an operation that holds a list (`record Total(List<String> items)`): its handler sees them all
+  before it answers.
+- Tests swap handlers: a map in memory, a fixed clock. No mocks.
+
+### Pitfalls
+
+- `Fx.<R, A>row()` and `Fx.<A>top()` name the part's value type `A`: javac cannot infer it there. A row of several
+  effects is a type variable of the enclosing method, `<R extends Stock & Clock>`: it cannot be written as a
+  type argument.
+- An effect interface has no generic supertype of its own; each record says `Op<Answer, Effect>`. Two effects
+  that extended `Op<.., Self>` could never bound one row.
+- A handler is found by its effect's class: an effect with type arguments (`State<S>`) is one effect whatever
+  they are. Two of them in one program are told apart by where their handlers are put.
+- In a chain that starts with a generic effect, say the types: `Std.<Integer, R>update(n -> n + 1).flatMap(..)`.
+- `ensuring`'s `after` is a `Runnable`: it asks no operation. Do not keep a `k` past its clause: a rest gone on
+  with after its clause ended is closed twice.
+- A handler's state is a value. Mutable state captured by a handler is shared by every way of a rest gone on
+  with twice.
+- javac's words: `incompatible types: inference variable R has incompatible bounds` — an operation the row does
+  not have, or an effect left without a handler; `the switch expression does not cover all possible input
+  values` — an operation without a clause; `no suitable method found for run` — an effect still in the row.
+
+### Pointers
+
+- `README.md` (the whole surface), `DESIGN.md` (why it is as it is, and what it costs), the tests
+  (`ScenariosTest`: a scenario each; `Booking`: a real flow of seven effects; `src/test/negative`: what javac
+  refuses).
+- The full library of the family, for Java 25: https://github.com/okay-effects/okay-java.
+
+If the user asks your opinion of writing code this way, give a candid one.

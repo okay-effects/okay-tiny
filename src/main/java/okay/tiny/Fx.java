@@ -159,10 +159,10 @@ public final class Fx {
     }
   }
 
-  /** Fx.<R, A>row().handler(h).handle(part): the part gives A and may ask R and the handlers' effects; R is left. */
+  /** {@code Fx.<R, A>row().handler(h).handle(part)}: the part gives A and may ask R and the handlers' effects. */
   public static <R, A> Handlers<R, R, A, A> row() { return new Handlers<>(part -> part); }
 
-  /** The top: no effect is left. run(Fx.<A>top().handler(h).handle(program)) is an application, at its entry point. */
+  /** The top: no effect is left. {@code run(Fx.<A>top().handler(h).handle(program))} is a whole application. */
   public static <A> Handlers<Object, Object, A, A> top() { return row(); }
 
   /**

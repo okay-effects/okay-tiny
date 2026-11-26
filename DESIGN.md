@@ -1,7 +1,8 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`. This page records what was decided, what in Java forced the
-shape of it, what was tried and left, and what an operation costs — so that none of it has to be found again.
+The kernel is `src/main/java/okay/tiny/Fx.java`, 242 lines of code. This page records what was decided, what in
+Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
+found again.
 
 ## 1. The decisions
 
@@ -71,6 +72,9 @@ One loop. The rest of the program is a stack of parts — one for each handler i
   rest was never gone on with, it was left, and the marks in it are run, the innermost first. A clause that only
   goes on takes its mark off with it. Under an exception every mark still in the stack is run, and what a closing
   throws is added to the exception.
+- `run(program, see)` gives an observer every operation asked, before it is answered; what it throws stops the
+  program there. It is the one thing a handler cannot do alone — see the operations of every effect — and is the
+  second argument of `run`, not a part of a program: an application has one.
 - A rest gone on with twice ends twice, and is closed twice. A rest kept and gone on with after its clause has
   ended is closed when that clause ends, and again when it ends itself: do not keep one.
 

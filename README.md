@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 235 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 242 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 
@@ -43,6 +43,24 @@ static <A, R> Handler<Refusal, A, Optional<A>, R> trying() {
 Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).handle(place(cart)));
 ```
 
+## Install
+
+```kotlin
+repositories { maven("https://okay-effects.github.io/okay-tiny/maven") }
+dependencies { implementation("io.github.okay-effects:okay-tiny:0.1.0") }
+```
+
+```xml
+<repository><id>okay-tiny</id><url>https://okay-effects.github.io/okay-tiny/maven</url></repository>
+
+<dependency>
+  <groupId>io.github.okay-effects</groupId><artifactId>okay-tiny</artifactId><version>0.1.0</version>
+</dependency>
+```
+
+Java 21, no dependency, the module `okay.tiny`. Or copy `Fx.java` into your code base: it is one file, made to
+be read and owned. `Std.java` is a second, with the usual effects.
+
 ## The whole of it
 
 | | |
@@ -58,6 +76,7 @@ Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).h
 | `ensuring(part, after)` | `after` runs when the part ends: with a value, left by a clause, or by an exception |
 | `Fx.<R, A>row().handler(h).handle(part)` | handlers around a part of a program; the row `R` is left |
 | `Fx.<A>top().handler(h).handle(program)` | around the whole program: nothing is left, and `run` takes it |
+| `run(program)`, `run(program, see)` | runs it; `see` is given every operation asked, as data, before it is answered |
 
 What javac refuses: an operation the row does not have, an effect left without a handler, a handler that leaves
 out an operation of its effect, an answer or a next state of another type, a handler that asks an effect that
@@ -87,7 +106,7 @@ The order of two handlers is the order of two monads (`StdTest`): a failure insi
 ## Build
 
 ```
-./gradlew test                        # 23 scenarios, the usual effects, a real flow of seven effects, 22 refusals
+./gradlew test                        # 25 scenarios, the usual effects, a real flow of seven effects, 22 refusals
 ./gradlew jmh                         # ns an operation (JMH)
 ./gradlew jmh -Pbench=StateBench.counter
 ```
