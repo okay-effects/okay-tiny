@@ -68,10 +68,26 @@ What a handler can do with the rest of its part, `k`: go on with it (an answer),
 handler's own value: an `Optional`, a failure), go on with it more than once (every way of a choice — the rest is
 a value, never replayed). Its state is a value too: a rest gone on with twice has two.
 
+## The usual effects
+
+[`Std.java`](src/main/java/okay/tiny/Std.java), 97 lines beside the kernel and written only with what it gives:
+each effect with the handler that is its monad.
+
+| Effect | Asked with | Handler | The part gives |
+|---|---|---|---|
+| `State<S>` | `get()`, `put(s)`, `update(f)` | `state(initial)` | `Final<S, A>`: the last state and the value |
+| `Fail<E>` | `fail(error)` | `option(E.class)`, `result(E.class)` | `Optional<A>`; `Result<E, A>` |
+| `Emit<X>` | `tell(item)` | `told(X.class)` | `Told<X, A>`: what was told and the value |
+| `Env<E>` | `ask()` | `env(value)` | `A` |
+| `Choice` | `choose(options)` | `all()` | `List<A>`: every way |
+
+The order of two handlers is the order of two monads (`StdTest`): a failure inside a state keeps the state,
+`Final<S, Result<E, A>>`; a state inside a failure is lost with the part, `Result<E, Final<S, A>>`.
+
 ## Build
 
 ```
-./gradlew test                        # 23 scenarios, a real flow of seven effects, 22 programs javac must refuse
+./gradlew test                        # 23 scenarios, the usual effects, a real flow of seven effects, 22 refusals
 ./gradlew jmh                         # ns an operation (JMH)
 ./gradlew jmh -Pbench=StateBench.counter
 ```
