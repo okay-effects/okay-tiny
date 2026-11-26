@@ -103,10 +103,21 @@ each effect with the handler that is its monad.
 The order of two handlers is the order of two monads (`StdTest`): a failure inside a state keeps the state,
 `Final<S, Result<E, A>>`; a state inside a failure is lost with the part, `Result<E, Final<S, A>>`.
 
+## Documentation
+
+| | |
+|---|---|
+| [The guide](docs/guide.md) | from nothing to an application, in order; every example is a test |
+| [From ports and adapters](docs/ports-and-adapters.md) | a service with interfaces and injection, moved in four steps |
+| [Reference](docs/reference.md) | every type and word, what javac refuses, what it costs |
+| [The machine](docs/machine.md) | for reviewing `Fx.java` |
+| [The design, and why](DESIGN.md) | the decisions, and what was tried and left |
+| [For coding agents](AGENTS.md) | the model on one page |
+
 ## Build
 
 ```
-./gradlew test                        # 25 scenarios, the usual effects, a real flow of seven effects, 22 refusals
+./gradlew test                        # scenarios, the docs' examples, a real flow of seven effects, 22 refusals
 ./gradlew jmh                         # ns an operation (JMH)
 ./gradlew jmh -Pbench=StateBench.counter
 ```

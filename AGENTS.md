@@ -96,7 +96,8 @@ Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).h
 
 ### Pointers
 
-- `README.md` (the whole surface), `DESIGN.md` (why it is as it is, and what it costs), the tests
+- `docs/guide.md` (in order, every example a test), `docs/reference.md` (every word), `docs/ports-and-adapters.md`
+  (a service with interfaces, moved), `docs/machine.md` (how `run` works), `DESIGN.md` (why it is as it is); the tests
   (`ScenariosTest`: a scenario each; `Booking`: a real flow of seven effects; `src/test/negative`: what javac
   refuses).
 - The full library of the family, for Java 25: https://github.com/okay-effects/okay-java.
