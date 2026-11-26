@@ -1,0 +1,100 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "io.github.okay-effects",
+    "module": "okay-tiny",
+    "version": "0.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.1.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "files": [
+        {
+          "name": "okay-tiny-0.1.0.jar",
+          "url": "okay-tiny-0.1.0.jar",
+          "size": 37052,
+          "sha512": "d068a30a10eeb86b5345968781185adea9bbe1be790458c25182d03a1b4894a36f012a3b69f5eb0795a299e66b5e83f52b626d63076c830be1ec8d8bd6c0bcd8",
+          "sha256": "349d472c39aad196411954b7f19deced1dd44975c7ce3a7b7a54479b0d32129f",
+          "sha1": "39b281f69895909928b258744575728be7e202f9",
+          "md5": "38b7366f3be9f603476a690b6880727e"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-tiny-0.1.0.jar",
+          "url": "okay-tiny-0.1.0.jar",
+          "size": 37052,
+          "sha512": "d068a30a10eeb86b5345968781185adea9bbe1be790458c25182d03a1b4894a36f012a3b69f5eb0795a299e66b5e83f52b626d63076c830be1ec8d8bd6c0bcd8",
+          "sha256": "349d472c39aad196411954b7f19deced1dd44975c7ce3a7b7a54479b0d32129f",
+          "sha1": "39b281f69895909928b258744575728be7e202f9",
+          "md5": "38b7366f3be9f603476a690b6880727e"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-tiny-0.1.0-sources.jar",
+          "url": "okay-tiny-0.1.0-sources.jar",
+          "size": 7876,
+          "sha512": "f5a81e7e601ccb7741d00a420171da04f0b04e3c1e833faadf92cb123855c306b130cd3031d9f6aaedbcbda79ce3586d2924daa0b988692dff96ba47d93142eb",
+          "sha256": "9a5f0fe71306a60e6e21338d0bc61facaf94bacea3260e812222ab55bf37d6af",
+          "sha1": "fe3e3fee384659130c209ebf6abc96bffb8d4bfd",
+          "md5": "9a85cc09f219c6e071be4bfb3bd8c069"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-tiny-0.1.0-javadoc.jar",
+          "url": "okay-tiny-0.1.0-javadoc.jar",
+          "size": 166542,
+          "sha512": "a0197438c2d10c5c76f61a161d429458b760e959f83a1dc034d66d7ba266ac4bdc294eb34b0c2a81096a2b4f8d6437c9343bbd1a99ce5a7ea683da8efb6122f5",
+          "sha256": "2aad1aad8dee71132b8c36cd6a60e04d5af5a85c7f60c3e06e3d601ba8f12d72",
+          "sha1": "adeadcfbb6e8f35b773f7c1b6ceddce2c1bff682",
+          "md5": "e0a64e1a30e8526366c5557160071ef9"
+        }
+      ]
+    }
+  ]
+}
