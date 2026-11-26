@@ -102,6 +102,10 @@ and nothing that a private method or a lambda can walk past.
 - **`transactional` above is for a rest that is gone on with once.** Its `committed` flag is shared by every
   way of a rest gone on with twice; a part under a handler like `Std.all()` needs a transaction for each way,
   and this one is not that.
+- **Asynchrony.** A use case that asks `Std.Async` inside a transaction is run under `blocking()`: the thread
+  waits, and the transaction is still bound to it. `Std.start` gives a `CompletableFuture`, which a controller
+  may return; after its first wait the program is on another thread, where nothing Spring bound is. Neither is
+  run in the sample.
 - **Reactive stacks.** A program runs on one thread and blocks where a handler blocks. On WebFlux a program
   that reaches a database belongs on a scheduler for blocking work, like any blocking call.
 - **What was not tried:** JPA and its session, `@Async`, Spring Security's method annotations, more than one

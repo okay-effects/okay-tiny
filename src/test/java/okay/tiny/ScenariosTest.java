@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
 /** What the kernel does, a scenario each: the programs and the handlers are Shop's. */
@@ -272,7 +273,28 @@ class ScenariosTest {
     assertEquals(List.of(new Stock.Reserve("tea", 2)), seen);
   }
 
-  static <R extends Clock> Comp<Long, R> mapped(int left, long sum) {
+/** A handler that stops its part at each operation and gives the rest as a value: to go on with, later. */
+static <A> Handler<Clock, A, Supplier<A>, Object> paused(List<String> log) {
+  return folding(Clock.class, null, (s, a) -> () -> a, op -> switch (op) {
+    case Clock.Now now -> keep(now, (s, k) -> pure(() -> {
+      log.add("going on");
+      return run(k.apply(7L, s)).get();
+    }));
+  });
+}
+
+/** keep: the rest is gone on with after its clause, and the run it was taken in, have ended — and is closed once. */
+@Test
+void aRestKeptIsGoneOnWithLaterInARunOfItsOwn() {
+  var log = new ArrayList<String>();
+  Comp<Long, Clock> part = ensuring(perform(new Clock.Now()), () -> log.add("closed"));
+  Supplier<Long> later = run(Fx.<Long>top().handler(paused(log)).handle(part.map(t -> t + 1)));
+  assertEquals(List.of(), log);                       // the part has not ended: nothing is closed yet
+  assertEquals(8L, later.get());
+  assertEquals(List.of("going on", "closed"), log);
+}
+
+static <R extends Clock> Comp<Long, R> mapped(int left, long sum) {
     return left == 0 ? pure(sum)
         : perform(new Clock.Now()).map(t -> t + 1).map(t -> t - 1).flatMap(t -> mapped(left - 1, sum + t));
   }

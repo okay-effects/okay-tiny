@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 242 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 247 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -76,7 +76,14 @@ One loop. The rest of the program is a stack of parts — one for each handler i
   program there. It is the one thing a handler cannot do alone — see the operations of every effect — and is the
   second argument of `run`, not a part of a program: an application has one.
 - A rest gone on with twice ends twice, and is closed twice. A rest kept and gone on with after its clause has
-  ended is closed when that clause ends, and again when it ends itself: do not keep one.
+  ended is closed when that clause ends, and again when it ends itself — unless the clause is made with `keep`.
+- `keep(op, clause)` is `on` without the mark under the clause: the rest is not taken for left when the clause
+  ends. Its keeper goes on with it later, in a run of its own — `run(k.apply(x, s))`: `k` is a value, and the
+  parts taken with it go back on top of an empty stack as on any other. It is all the kernel has for
+  asynchrony: `Std.Async` (an operation that holds the work to start; `blocking()`, where the thread waits, and
+  `start`, where the rest goes on from the callback of a `CompletableFuture`) is written with it and nothing
+  else. That a kept rest asks nothing outside is not in the types for a handler put by hand; `start` takes a
+  `Comp<A, Async>` and puts the handler itself, so there it is.
 
 ## 4. Tried, and left
 
@@ -111,6 +118,8 @@ under every clause that is given the rest, and a test for marks at every step.
 ## 6. What is not here
 
 - **Direct style.** Without threads or a bytecode transformation there is none in Java; okay-java has it.
+- **Cancelling, timeouts, and programs run side by side.** `Async` waits for work; it does not stop it, and two
+  programs at once are two `start`.
 - **Finalizers that ask.** `ensuring(part, after)` runs a `Runnable`: it closes, and asks no operation.
 - **The laws.** That `ret` and the clauses of a handler make a lawful monad is their author's: a clause that
   applies `k` twice and keeps one result passes the types.

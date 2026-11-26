@@ -37,6 +37,7 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 | `on(op, (state, k) -> ..)` | the clause for the operation matched; `k.apply(answer, nextState)` goes on with the rest |
 | `answer(op, value)` | `on(op, (s, k) -> k.apply(value, s))`, answered where it is asked |
 | `leave(value)` | a clause for any operation of the effect: the part is left, the handler gives `value` |
+| `keep(op, (state, k) -> ..)` | `on` for a clause that keeps `k` to go on with it after the clause has ended, in a run of its own: the rest is not closed when the clause ends |
 
 A clause may: apply `k` once (answer); not apply it (the part is left with the clause's own value, and `ret` is
 not called); apply it and go on after it with `map` or `flatMap`; apply it more than once. It is a program of
@@ -70,6 +71,7 @@ handler there with `row()`.
 | `Emit<X>` | `Tell` | `tell(item)` | `told()`, `told(X.class)`: `Told<X, A>` |
 | `Env<E>` | `Ask` | `ask()` | `env(value)`: `A` |
 | `Choice` | `Of<X>` | `choose(options)` | `all()`: `List<A>` |
+| `Async` | `Await<X>` | `await(start)`, `awaitAll(starts)` | `blocking()`: `A`; `start(program)`, `start(program, see)`: runs a `Comp<A, Async>`, gives a `CompletableFuture<A>` |
 
 `Final<S, A>(state, value)`, `Told<X, A>(items, value)`, `Result<E, A>` = `Ok(value)` or `Failed(error)`.
 A handler that takes a class does so only to name a type javac cannot infer where the handler is put.

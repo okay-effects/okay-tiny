@@ -388,6 +388,7 @@ are written with nothing but what this guide has shown, and are patterns for you
 | `Emit<X>` | `tell(item)` | `told(X.class)` | `Told<X, A>` |
 | `Env<E>` | `ask()` | `env(value)` | `A` |
 | `Choice` | `choose(options)` | `all()` | `List<A>` |
+| `Async` | `await(start)`, `awaitAll(starts)` | `blocking()`; or `start(program)` | `A`; a `CompletableFuture<A>` |
 
 The order of two handlers is meaning. A failure inside a state keeps the state; a state inside a failure is
 lost with the part (`StdTest.theOrderOfTwoHandlersIsTheOrderOfTwoMonads`):
@@ -399,6 +400,8 @@ run(Fx.<String>top().handler(result(String.class)).handler(state(0)).handle(coun
 run(Fx.<String>top().handler(state(0)).handler(result(String.class)).handle(countThenFail()));
 // Failed[error=no]
 ```
+
+`Async` has a page of its own: [Asynchrony as an effect](async.md).
 
 These effects have type arguments, and that costs one thing: where a chain begins with one of them, the types
 are said — `Std.<Integer, R>update(n -> n + 1).flatMap(..)`.
@@ -471,4 +474,5 @@ Three things a test can check that a mock cannot easily:
 - A handler is found by its effect's class. An effect with type arguments is one effect whatever they are.
 - Mutable state captured by a handler is shared by every way of a rest gone on with twice. The handler's own
   state — the second argument of `folding` — is not.
-- Do not keep a `k` past its clause.
+- Do not keep a `k` past its clause — unless the clause is made with `keep`, which is for that
+  ([Asynchrony as an effect](async.md)).

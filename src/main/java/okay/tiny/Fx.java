@@ -59,10 +59,12 @@ public final class Fx {
     private final Object op;                             // none: any operation of the effect (leave)
     private final Clause<Object, S, B, R> clause;        // none: the operation is only answered, with
     private final Object answer;
+    private final boolean kept;                          // the rest is not closed when the clause ends
 
     @SuppressWarnings("unchecked")
-    private Case(Object op, Clause<?, S, B, R> clause, Object answer) {
+    private Case(Object op, Clause<?, S, B, R> clause, Object answer, boolean kept) {
       this.op = op;
+      this.kept = kept;
       this.clause = (Clause<Object, S, B, R>) clause;
       this.answer = answer;
     }
@@ -70,12 +72,21 @@ public final class Fx {
 
   /** The clause for the operation matched: the type of its answer is the operation's own. */
   public static <X, F, S, B, R> Case<F, S, B, R> on(Op<X, F> op, Clause<X, S, B, R> clause) {
-    return new Case<>(Objects.requireNonNull(op), clause, null);
+    return new Case<>(Objects.requireNonNull(op), clause, null, false);
+  }
+
+  /**
+   * A clause that keeps the rest, to go on with it after the clause has ended: from a callback, in a run of its own
+   * (run(k.apply(x, s)), where nothing is left to ask). The rest is then not closed when the clause ends: who
+   * keeps it goes on with it, or what it was to close is never closed.
+   */
+  public static <X, F, S, B, R> Case<F, S, B, R> keep(Op<X, F> op, Clause<X, S, B, R> clause) {
+    return new Case<>(Objects.requireNonNull(op), clause, null, true);
   }
 
   /** The usual clause, on(op, (s, k) -> k.apply(answer, s)): answered where it is asked, nothing taken off. */
   public static <X, F, S, B, R> Case<F, S, B, R> answer(Op<X, F> op, X answer) {
-    return new Case<>(Objects.requireNonNull(op), null, answer);
+    return new Case<>(Objects.requireNonNull(op), null, answer, false);
   }
 
   public static final class Handler<F, A, B, R> {
@@ -110,7 +121,7 @@ public final class Fx {
 
   /** A clause for any operation of the effect, which can only leave the part: with this value. */
   public static <F, S, B, R> Case<F, S, B, R> leave(B value) {
-    return new Case<>(null, (state, k) -> pure(value), null);
+    return new Case<>(null, (state, k) -> pure(value), null, false);
   }
 
   /**
@@ -261,7 +272,8 @@ public final class Fx {
             if (clause.clause != null) {                // the rest, to the end of the handler's part, is taken off
               K<Object, Object, Object, Object> k = new K<>(rest, around, own, states, state);
               Object its = own == around ? state : states[own.depth];
-              rest = new Rest(null, true, k, own.rest); // and the clause is a program of what is around that part
+              // the clause is a program of what is around that part; under it, a mark: was the rest gone on with
+              rest = clause.kept ? own.rest : new Rest(null, true, k, own.rest);
               around = own.outer;
               if (around != null) state = states[around.depth];
               now = clause.clause.on(its, k);

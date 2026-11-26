@@ -62,7 +62,8 @@ Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).h
 
 `Std`: `State<S>` (`get`, `put`, `update`; `state(initial)`), `Fail<E>` (`fail`; `option(E.class)`,
 `result(E.class)`), `Emit<X>` (`tell`; `told(X.class)`), `Env<E>` (`ask`; `env(value)`), `Choice`
-(`choose(options)`; `all()`).
+(`choose(options)`; `all()`), `Async` (`await(() -> stage)`, `awaitAll(starts)`; `blocking()` — the thread waits; or
+`start(program)` for a `Comp<A, Async>` — no thread waits, a `CompletableFuture<A>`).
 
 ### Rules
 
@@ -86,7 +87,8 @@ Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).h
 - A handler is found by its effect's class: an effect with type arguments (`State<S>`) is one effect whatever
   they are. Two of them in one program are told apart by where their handlers are put.
 - In a chain that starts with a generic effect, say the types: `Std.<Integer, R>update(n -> n + 1).flatMap(..)`.
-- `ensuring`'s `after` is a `Runnable`: it asks no operation. Do not keep a `k` past its clause: a rest gone on
+- `ensuring`'s `after` is a `Runnable`: it asks no operation. Do not keep a `k` past its clause (a clause made with `keep` may:
+  it is how `Std.start` goes on from a callback): a rest gone on
   with after its clause ended is closed twice.
 - A handler's state is a value. Mutable state captured by a handler is shared by every way of a rest gone on
   with twice.
@@ -97,7 +99,7 @@ Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).h
 ### Pointers
 
 - `docs/guide.md` (in order, every example a test), `docs/reference.md` (every word), `docs/ports-and-adapters.md`
-  (a service with interfaces, moved), `docs/spring.md` and `spring-sample/` (a Spring Boot service),
+  (a service with interfaces, moved), `docs/async.md` (asynchrony), `docs/spring.md` and `spring-sample/` (a Spring Boot service),
   `docs/machine.md` (how `run` works), `DESIGN.md` (why it is as it is); the tests
   (`ScenariosTest`: a scenario each; `Booking`: a real flow of seven effects; `src/test/negative`: what javac
   refuses).

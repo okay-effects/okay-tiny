@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 242 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 247 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 
@@ -89,7 +89,7 @@ a value, never replayed). Its state is a value too: a rest gone on with twice ha
 
 ## The usual effects
 
-[`Std.java`](src/main/java/okay/tiny/Std.java), 97 lines beside the kernel and written only with what it gives:
+[`Std.java`](src/main/java/okay/tiny/Std.java), 170 lines beside the kernel and written only with what it gives:
 each effect with the handler that is its monad.
 
 | Effect | Asked with | Handler | The part gives |
@@ -99,6 +99,7 @@ each effect with the handler that is its monad.
 | `Emit<X>` | `tell(item)` | `told(X.class)` | `Told<X, A>`: what was told and the value |
 | `Env<E>` | `ask()` | `env(value)` | `A` |
 | `Choice` | `choose(options)` | `all()` | `List<A>`: every way |
+| `Async` | `await(start)`, `awaitAll(starts)` | `blocking()`; or `start(program)` | `A`; a `CompletableFuture<A>` |
 
 The order of two handlers is the order of two monads (`StdTest`): a failure inside a state keeps the state,
 `Final<S, Result<E, A>>`; a state inside a failure is lost with the part, `Result<E, Final<S, A>>`.
@@ -109,6 +110,7 @@ The order of two handlers is the order of two monads (`StdTest`): a failure insi
 |---|---|
 | [The guide](docs/guide.md) | from nothing to an application, in order; every example is a test |
 | [From ports and adapters](docs/ports-and-adapters.md) | a service with interfaces and injection, moved in four steps |
+| [Asynchrony as an effect](docs/async.md) | one program, a handler that waits and one that does not |
 | [In a Spring Boot service](docs/spring.md) | beans, a database, Spring's transactions, a controller — a sample that runs |
 | [Reference](docs/reference.md) | every type and word, what javac refuses, what it costs |
 | [The machine](docs/machine.md) | for reviewing `Fx.java` |
@@ -118,7 +120,7 @@ The order of two handlers is the order of two monads (`StdTest`): a failure insi
 ## Build
 
 ```
-./gradlew test                        # scenarios, the docs' examples, a real flow of seven effects, 22 refusals
+./gradlew test                        # scenarios, the docs' examples, a real flow of seven effects, 23 refusals
 ./gradlew jmh                         # ns an operation (JMH)
 ./gradlew jmh -Pbench=StateBench.counter
 ```
