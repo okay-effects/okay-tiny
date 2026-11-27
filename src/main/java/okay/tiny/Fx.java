@@ -66,25 +66,24 @@ public final class Fx {
     Comp<B, R> on(S state, BiFunction<X, S, Comp<B, R>> k);
   }
 
-  /** A clause, and the operation it was made for. */
-  public static final class Case<F, S, B, R> {
-    private final Object op;                             // none: any operation of the effect (leave)
-    private final Clause<Object, S, B, R> clause;        // none: the operation is only answered, with
-    private final Object answer;
-    private final boolean kept;                          // the rest is not closed when the clause ends
+  /**
+   * A clause, and the operation it was made for. The type of that operation's answer is not in it: so the arms of
+   * a handler's switch, each of an operation with an answer of its own, are of one type. Made only by on, keep,
+   * answer and leave.
+   */
+  public sealed interface Case<F, S, B, R> {}
 
-    @SuppressWarnings("unchecked")
-    private Case(Object op, Clause<?, S, B, R> clause, Object answer, boolean kept) {
-      this.op = op;
-      this.kept = kept;
-      this.clause = (Clause<Object, S, B, R>) clause;
-      this.answer = answer;
-    }
-  }
+  /**
+   * What a Case is, with the answer's type X, which Case hides. op: none for any operation of the effect (leave).
+   * clause: none where the operation is only answered, with `answer`. kept: the rest is not closed when the
+   * clause ends.
+   */
+  private record Of<X, F, S, B, R>(Op<X, F> op, Clause<X, S, B, R> clause, X answer, boolean kept)
+      implements Case<F, S, B, R> {}
 
   /** The clause for the operation matched: the type of its answer is the operation's own. */
   public static <X, F, S, B, R> Case<F, S, B, R> on(Op<X, F> op, Clause<X, S, B, R> clause) {
-    return new Case<>(Objects.requireNonNull(op), clause, null, false);
+    return new Of<>(Objects.requireNonNull(op), clause, null, false);
   }
 
   /**
@@ -93,12 +92,12 @@ public final class Fx {
    * keeps it goes on with it, or what it was to close is never closed.
    */
   public static <X, F, S, B, R> Case<F, S, B, R> keep(Op<X, F> op, Clause<X, S, B, R> clause) {
-    return new Case<>(Objects.requireNonNull(op), clause, null, true);
+    return new Of<>(Objects.requireNonNull(op), clause, null, true);
   }
 
   /** The usual clause, on(op, (s, k) -> k.apply(answer, s)): answered where it is asked, nothing taken off. */
   public static <X, F, S, B, R> Case<F, S, B, R> answer(Op<X, F> op, X answer) {
-    return new Case<>(Objects.requireNonNull(op), null, answer, false);
+    return new Of<>(Objects.requireNonNull(op), null, answer, false);
   }
 
   public static final class Handler<F, A, B, R> {
@@ -133,7 +132,7 @@ public final class Fx {
 
   /** A clause for any operation of the effect, which can only leave the part: with this value. */
   public static <F, S, B, R> Case<F, S, B, R> leave(B value) {
-    return new Case<>(null, (state, k) -> pure(value), null, false);
+    return new Of<Object, F, S, B, R>(null, (state, k) -> pure(value), null, false);
   }
 
   /**
@@ -279,7 +278,7 @@ public final class Fx {
             Around own = around;
             while (own != null && !own.handler.effect.isInstance(op)) own = own.outer;
             if (own == null) throw new IllegalStateException("no handler for " + op);
-            var clause = (Case<?, Object, Object, Object>) own.handler.cases.apply(op);
+            var clause = (Of<Object, ?, Object, Object, Object>) own.handler.cases.apply(op);
             if (clause.op != null && clause.op != op) {
               throw new IllegalStateException("a clause made for " + clause.op + ", asked was " + op);
             }

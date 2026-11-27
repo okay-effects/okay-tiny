@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 267 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 259 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -34,7 +34,7 @@ found again.
 - **A clause for each operation, made by `on(op, ..)`.** With one clause for the whole effect, `k` would have to
   take answers of different types, and Java does not refine a type in a `case`. `on(p, clause)` reads the answer
   type off `p` once, and gives a `Case<F, S, B, R>` in which that type is hidden — so the arms of the `switch`
-  have one type. `Case` has no public constructor: a clause of another answer type cannot be put there by a cast.
+  have one type. `Case` is sealed, over one private record that has the answer's type: a clause of another answer type cannot be put there by a cast.
 - **That is as short as it gets.** The effect is named twice on a record — `implements Stock, Op<Boolean, Stock>` —
   and every way to say it once was tried and is refused for the same reason, a generic supertype that two effects
   of one row give different arguments: `Stock extends Op<A, Stock>`; an answer-indexed family,

@@ -117,5 +117,5 @@ exception on, unchanged.
 - The six places marked unchecked: the phantom row in `flatMap` and in `map`; a clause stored without its answer type in
   `Case`; a handler stored without its state type; the result of `handle`; the loop's own values. Each is
   where Java's types end, not where the library's guarantees do: what guards them is `on` (the answer type is
-  the operation's), the private constructor of `Case`, and the test that a clause was made for the operation
+  the operation's), `Case` sealed over its one private record, and the test that a clause was made for the operation
   asked.
