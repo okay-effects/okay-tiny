@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 250 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 275 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -24,6 +24,14 @@ found again.
    handler sees them all before it answers (one query, a sum, a way for each).
 7. **The names**: `row`, `top`, `handler`, `handle` for where handlers are put; `folding`, `handling`, `on`,
    `answer` for making them.
+
+## 1a. The rule of the code
+
+Nothing is weakly typed where a type exists. What has several kinds is a sealed type of records, one for each
+kind — the nodes of a program, the steps of the machine. What must hide a type from the outside hides it as an
+existential: a sealed interface without that type, over a private record with it — `Case` over `Of<X, ..>` (the
+answer's type), `Handler` over `Fold<.., S, ..>` (the state's). Only the registers of the machine's loop are
+`Object`, and `docs/machine.md` says why.
 
 ## 2. What Java forced
 
@@ -106,6 +114,7 @@ One loop. The rest of the program is a stack of parts — one for each handler i
 | a block of named answers asked in rounds (`plan`) | it lived on sets of operations |
 | the state in the stack's records | a handler with a state outside six others cost 57 ns an operation, not 30 |
 | the effect's class read from an empty varargs array | see above |
+| a step as one record with flags (`mapped`) and a mark of type `Object`; `Case` and `Handler` as classes with `Object` fields | each is a sealed type over records now, the hidden type an existential inside: fewer casts, and the step 2 to 6 ns an operation faster |
 | in a rest put back, always a copy of the states with those inside copied in — without the case where nothing around has changed, which is one `clone` | a state outermost of three cost 36 ns an operation, not 30 |
 
 ## 5. What it costs
@@ -114,13 +123,13 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 
 | | ns |
 |---|---|
-| `answer`, the handler the innermost of seven | 10.1 |
+| `answer`, the handler the innermost of seven | 9.4 |
 | `answer`, the handler the outermost of seven | 15.1 |
-| an answer and two `map` | 20.5 |
-| a counter (a state that moves on at every operation), alone | 18.9 |
-| the counter the innermost of seven | 20.8 |
-| the counter the outermost of three | 29.5 |
-| the counter the outermost of seven | 32.9 |
+| an answer and two `map` | 20.4 |
+| a counter (a state that moves on at every operation), alone | 17.6 |
+| the counter the innermost of seven | 19.1 |
+| the counter the outermost of three | 25.8 |
+| the counter the outermost of seven | 30.6 |
 
 A free monad makes five or six small objects for an operation; that is the floor. Next to a query to a database
 it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark

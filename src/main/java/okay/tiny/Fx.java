@@ -165,10 +165,20 @@ public final class Fx {
 
   /** Closes what these steps were to close; under an exception, what closing throws is added to it. */
   private static void close(Rest steps, Throwable thrown) {
-    for (; steps != null; steps = steps.after) {
+    while (steps != null) {
       try {
-        if (steps.mark instanceof Runnable after) after.run();
-        else if (steps.mark instanceof K<?, ?, ?, ?> k && !k.gone) k.left(thrown);
+        switch (steps) {
+          case Then step -> steps = step.after;
+          case Mapping step -> steps = step.after;
+          case Closing mark -> {
+            steps = mark.after;
+            mark.close.run();
+          }
+          case Taken mark -> {
+            steps = mark.after;
+            if (!mark.k.gone) mark.k.left(thrown);
+          }
+        }
       } catch (Throwable inClosing) {
         if (thrown == null) throw inClosing;
         thrown.addSuppressed(inClosing);
@@ -207,12 +217,20 @@ public final class Fx {
 
   // ---- the machine: one loop; the rest of the program is a stack of parts, each a stack of steps ------------------
 
-  /**
-   * A step of the rest of a part: a program of the value so far; or, `mapped`, only a value of it. Or a mark, which
-   * the value passes: what to run when the part ends (ensuring), or the rest a clause was given, to see when that
-   * clause ends whether it went on with it.
-   */
-  private record Rest(Function<Object, Object> next, boolean mapped, Object mark, Rest after) {}
+  /** The rest of a part: a step, and the steps after it. The value so far is given to a step, or passes a mark. */
+  private sealed interface Rest {}
+
+  /** flatMap: a program of the value so far. */
+  private record Then(Function<Object, Comp<?, ?>> next, Rest after) implements Rest {}
+
+  /** map: a value of it. */
+  private record Mapping(Function<Object, Object> f, Rest after) implements Rest {}
+
+  /** A mark of ensuring: when the value passes it, the part it was for has ended. */
+  private record Closing(Runnable close, Rest after) implements Rest {}
+
+  /** A mark under a clause: the rest that clause was given, to see when it ends whether it went on with it. */
+  private record Taken(K<?, ?, ?, ?> k, Rest after) implements Rest {}
 
   /** A part being run: its handler, how many parts are around it, the steps after it, and the part around it. */
   private record Around(Fold<Object, Object, Object, Object, Object> handler, int depth, Rest rest, Around outer) {}
@@ -240,22 +258,22 @@ public final class Fx {
     Object[] taken = null;                //   and written in place unless it is the one a rest was taken off with
     Object asked = null;                  // the operation asked last
     try {
-      while (true) {
+      turn: while (true) {
         Object value;
         switch (now) {
           case Pure<?, ?> v -> value = v.value();
           case FlatMap<?, ?, ?> m -> {
-            rest = new Rest((Function<Object, Object>) (Function<?, ?>) m.next(), false, null, rest);
+            rest = new Then((Function<Object, Comp<?, ?>>) (Function<?, ?>) m.next(), rest);
             now = m.first();
             continue;
           }
           case Mapped<?, ?, ?> m -> {
-            rest = new Rest((Function<Object, Object>) (Function<?, ?>) m.f(), true, null, rest);
+            rest = new Mapping((Function<Object, Object>) (Function<?, ?>) m.f(), rest);
             now = m.first();
             continue;
           }
           case Ensure<?, ?> e -> {
-            rest = new Rest(null, true, e.after(), rest);
+            rest = new Closing(e.after(), rest);
             now = e.part();
             continue;
           }
@@ -283,7 +301,7 @@ public final class Fx {
               taken = states;
               Object its = own == around ? state : states[own.depth];
               // the clause is a program of what is around that part; under it, a mark: was the rest gone on with
-              rest = clause.kept ? own.rest : new Rest(null, true, k, own.rest);
+              rest = clause.kept ? own.rest : new Taken(k, own.rest);
               around = own.outer;
               if (around != null) state = states[around.depth];
               now = clause.clause.on(its, k);
@@ -305,7 +323,7 @@ public final class Fx {
           case Resume<?, ?, ?, ?> r -> {                      // the rest is put back, on top of what the clause is at
             K<?, ?, ?, ?> k = r.k();
             k.gone = true;
-            if (rest != null && rest.mark == k) rest = rest.after;      // the clause ends with this: its mark too
+            if (rest instanceof Taken mark && mark.k == k) rest = mark.after;   // the clause ends with this: its mark
             int depth = around == null ? 0 : around.depth + 1;          // of the handler's own part, as put now
             int inside = k.top.depth - k.own.depth;                     // the parts the rest has inside that one
             if (around != null) states = with(states, around.depth, state, states != taken);
@@ -338,15 +356,26 @@ public final class Fx {
             around = around.outer;
             if (around != null) state = states[around.depth];
           }
-          Rest step = rest;
-          rest = step.after;
-          if (step.mark == null) {
-            value = step.next.apply(value);
-            if (!step.mapped) break;
-          } else if (step.mark instanceof Runnable after) after.run();           // the part it was for has ended
-          else if (!((K<?, ?, ?, ?>) step.mark).gone) ((K<?, ?, ?, ?>) step.mark).left(null);    // its clause has
+          switch (rest) {
+            case Then step -> {
+              rest = step.after;
+              now = step.next.apply(value);
+              continue turn;
+            }
+            case Mapping step -> {
+              rest = step.after;
+              value = step.f.apply(value);
+            }
+            case Closing mark -> {
+              rest = mark.after;
+              mark.close.run();
+            }
+            case Taken mark -> {                        // its clause has ended: was the rest gone on with?
+              rest = mark.after;
+              if (!mark.k.gone) mark.k.left(null);
+            }
+          }
         }
-        now = (Comp<?, ?>) value;
       }
     } catch (Throwable thrown) {                        // what was to be closed is closed, and it is thrown on
       failed(thrown, asked, rest, around);

@@ -33,6 +33,10 @@ Making a node does nothing. `R`, the row, is only in the types: nothing of it is
 `rest` and `around` are immutable linked lists. That is what lets a rest be a value: to take it is to keep two
 pointers.
 
+A step is one of four, a sealed type: `Then` (of `flatMap`: a program of the value so far), `Mapping` (of `map`: a
+value of it), and two marks the value passes — `Closing` (of `ensuring`: the part it was for has ended) and
+`Taken` (under a clause: the rest that clause was given).
+
 ## One turn
 
 The loop looks at `now`:
@@ -114,8 +118,10 @@ exception on, unchanged.
 - No field of a node, a step or a part is ever written after it is made, except `K.gone`, a flag that only
   ever goes from false to true.
 - `states` is copied before every write once it has been given to a `k`.
-- The six places marked unchecked: the phantom row in `flatMap` and in `map`; a clause stored without its answer type in
-  `Case`; a handler stored without its state type; the result of `handle`; the loop's own values. Each is
-  where Java's types end, not where the library's guarantees do: what guards them is `on` (the answer type is
-  the operation's), `Case` sealed over its one private record, and the test that a clause was made for the operation
-  asked.
+- The five places marked unchecked: the phantom row in `flatMap` and in `map`; the handlers put so far, kept as
+  a function of a program of any type; the result of `handle`; and the loop. The loop is where the types that
+  `Case`, `Handler` and the nodes hide are opened: its registers — `value`, `state`, `states` — hold what each
+  step, in its turn, has a type for, and a variable of a Java loop has one type. Nothing else is erased: the
+  nodes, a clause (`Case` over `Of`), a handler (`Handler` over `Fold`) and a step are typed. What guards the
+  loop is `on` (the answer type is the operation's), the two sealed types, and the test that a clause was made
+  for the operation asked.
