@@ -235,4 +235,3 @@ class StdTest {
             .handler(Other.state.from(0)).handle(both())));
   }
 }
-}
