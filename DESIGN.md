@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 397 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 388 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -234,8 +234,13 @@ places were marked unchecked, and five are (`docs/machine.md` lists them).
 
 **A clause that only goes on is answered as `answer` answers.** The steps of a rest — the `Then` of what
 follows the operation — were made before its clause was called, and the answer was then given through them,
-by the loop. They are made now only where the rest is taken off; a clause that only goes on gives its
-answer straight to what follows, within the move. A counter made 112 bytes an operation and makes 92; it cost
+by the loop. No step is made for it now: a rest holds what was asked — the node, which gives the program that
+follows from an answer — and the steps after that, so it is whole when its clause is called, and a clause that
+only goes on gives its answer straight to what follows, within the move. (For a while the steps were put in
+the rest after the clause had returned. A clause made with `keep` may run its rest inside itself — a callback
+given to work already done is called there and then — and found it without steps:
+`ScenariosTest.aRestKeptMayBeRunWithinItsOwnClause`. Nothing of a rest is written after it is made, but the
+flag that it was gone on with.) A counter made 112 bytes an operation and makes 92; it cost
 9.0 ns and costs 7.5, a template's state 12.8 and 11.9. It goes on within the move only where the part that
 answers is the innermost: for a template's state the outermost of seven, going on within the move cost 19.5
 ns where the way back to the loop costs 14.6 (it was 15.5) — a longer move, which the JIT no longer made one

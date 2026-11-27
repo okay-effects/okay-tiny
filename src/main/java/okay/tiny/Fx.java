@@ -42,37 +42,24 @@ public final class Fx {
     @Override public <B, Q extends R> Comp<B, Q> flatMap(Function<? super A, ? extends Comp<B, Q>> next) {
       return new Asking<>(op, next);
     }
-    @Override public <Y> Rest<A, Y> after(Rest<A, Y> rest) { return rest; }
-    @Override public <Y, Z> At<Z> answered(Machine<Z> machine, A answer, Rest<A, Y> rest, Around<Y, Z> around,
-                                           int more) {
-      return machine.give(answer, rest, around);
-    }
+    @Override public Comp<A, R> given(A answer) { return new Pure<>(answer); }
   }
   /** An operation asked, and the program of its answer: the node a free monad is named for. */
   record Asking<X, A, R>(Op<X, ? super R> op, Function<? super X, ? extends Comp<A, R>> next)
       implements Comp<A, R>, Asks<X, A> {
-    @Override public <Y> Rest<X, Y> after(Rest<A, Y> rest) { return new Then<>(next, rest); }
-    @Override public <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Rest<A, Y> rest, Around<Y, Z> around,
-                                           int more) {
-      Comp<A, ?> now = next.apply(answer);
-      return more > 0 ? machine.run(now, rest, around, more - 1) : new Run<>(now, rest, around);
-    }
+    @Override public Comp<A, R> given(X answer) { return next.apply(answer); }
   }
-  /**
-   * The two nodes that ask: an operation whose answer is X, in a program that gives A. What they differ in is what
-   * follows the answer: the steps that take it, and what the machine does with it where it is given in place.
-   */
+  /** The two nodes that ask: an operation whose answer is X, and the program that follows, given the answer. */
   private sealed interface Asks<X, A> {
     Op<X, ?> op();
-    <Y> Rest<X, Y> after(Rest<A, Y> rest);
-    <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Rest<A, Y> rest, Around<Y, Z> around, int more);
+    Comp<A, ?> given(X answer);
   }
   record FlatMap<X, A, R>(Comp<X, ? super R> first, Function<? super X, ? extends Comp<A, R>> next)
       implements Comp<A, R> {}
   /** The part gives A and asks V; the handler is of an effect V has, gives B, and asks what stays, R. */
   record Part<A, B, V, R>(Handler<? super V, A, B, ? super R> handler, Comp<A, ? super V> part)
       implements Comp<B, R> {}
-  record Resume<X, S, B, R>(K<X, ?, S, B, R> k, X value, S state) implements Comp<B, R> {}
+  record Resume<X, S, B, R>(K<X, ?, ?, S, B, R> k, X value, S state) implements Comp<B, R> {}
   record Ensure<A, R>(Comp<A, R> part, Runnable after) implements Comp<A, R> {}
   record Defer<A, R>(Supplier<? extends Comp<A, ? super R>> program) implements Comp<A, R> {}
 
@@ -240,17 +227,21 @@ public final class Fx {
 
   /**
    * The rest of the part, to its end, as a value: it may be gone on with once, twice or never. X is the answer it
-   * takes, S the next state of its handler, B what that handler gives. It is the steps of the innermost part —
-   * from X to that part's value, T — and the parts taken with it, each with the state it had: once taken off they
-   * are run by no one, and each time the rest goes on it goes on with parts made anew of them.
+   * takes, S the next state of its handler, B what that handler gives. It is what was asked — whose answer gives
+   * a program of A — the steps of the innermost part after that, from A to that part's value, T, and the parts
+   * taken with it, each with the state it had: once taken off they are run by no one, and each time the rest goes
+   * on it goes on with parts made anew of them. Nothing of it changes but one flag.
    */
-  private static final class K<X, T, S, B, R> implements BiFunction<X, S, Comp<B, R>> {
-    private Rest<X, T> rest;                         // the steps of the innermost part: made when it is taken off
+  private static final class K<X, A, T, S, B, R> implements BiFunction<X, S, Comp<B, R>> {
+    private final Asks<X, A> asks;                   // what was asked
+    private final Rest<A, T> steps;                  // the steps of the innermost part, after it
     private final Around<T, ?> top;                  // the parts taken with it, from the innermost
     private final In<?, S, ?, B, ?, ?, ?> own;       //   to the handler's own
     private boolean gone;                            // gone on with, at least once: else it was left
 
-    private K(Around<T, ?> top, In<?, S, ?, B, ?, ?, ?> own) { this.top = top; this.own = own; }
+    private K(Asks<X, A> asks, Rest<A, T> steps, Around<T, ?> top, In<?, S, ?, B, ?, ?, ?> own) {
+      this.asks = asks; this.steps = steps; this.top = top; this.own = own;
+    }
 
     @Override public Comp<B, R> apply(X answer, S state) { return new Resume<>(this, answer, state); }
 
@@ -268,18 +259,18 @@ public final class Fx {
     private <Y, Z> At<Z> back(X answer, S next, Rest<B, Y> after, Around<Y, Z> now) {
       gone = true;
       if (after instanceof Taken<B, Y> mark && mark.k == this) after = mark.after;    // the clause ends with this
-      return new Give<>(answer, rest, top.anew(this, next, after, now));
+      return new Run<>(asks.given(answer), steps, top.anew(this, next, after, now));
     }
 
     /** Its own part anew. It is the part `from` was: so the part gives what `from` gave, A. */
     @SuppressWarnings("unchecked")
-    private <F, P, Q, A, Y, Z> Around<A, Z> its(In<F, S, P, B, Q, ?, ?> own, S state, Rest<B, Y> rest,
+    private <F, P, Q, G, Y, Z> Around<G, Z> its(In<F, S, P, B, Q, ?, ?> own, S state, Rest<B, Y> rest,
                                                 Around<Y, Z> now) {
-      return (Around<A, Z>) new In<F, S, P, B, Q, Y, Z>(own.handler, state, rest, now);
+      return (Around<G, Z>) new In<F, S, P, B, Q, Y, Z>(own.handler, state, rest, now);
     }
 
     /** The rest is left: what it was to close is closed, the innermost first. */
-    private void left(Throwable thrown) { close(rest, top, own, thrown); }
+    private void left(Throwable thrown) { close(steps, top, own, thrown); }
   }
 
   /** Closes what these steps were to close, and then those of the parts from `from` out to `until`, not of it. */
@@ -380,7 +371,7 @@ public final class Fx {
   }
 
   /** The mark under a clause, with the rest that clause was given: a rest it did not go on with was left. */
-  private record Taken<A, Z>(K<?, ?, ?, A, ?> k, Rest<A, Z> after) implements Mark<A, Z> {
+  private record Taken<A, Z>(K<?, ?, ?, ?, A, ?> k, Rest<A, Z> after) implements Mark<A, Z> {
     @Override public void ended(Throwable thrown) { if (!k.gone) k.left(thrown); }
   }
 
@@ -398,7 +389,7 @@ public final class Fx {
      * The parts a rest was taken with, anew, from this one to that rest's own: each with the state it had, its
      * own with `state` and `rest` after it, on top of the parts run now.
      */
-    <S, B, Y, W> Around<A, W> anew(K<?, ?, S, B, ?> k, S state, Rest<B, Y> rest, Around<Y, W> now);
+    <S, B, Y, W> Around<A, W> anew(K<?, ?, ?, S, B, ?> k, S state, Rest<B, Y> rest, Around<Y, W> now);
   }
 
   /**
@@ -416,7 +407,7 @@ public final class Fx {
       this.handler = handler; this.cases = handler.cases; this.state = state; this.rest = rest; this.outer = outer;
     }
 
-    @Override public <U, C, V, W> Around<A, W> anew(K<?, ?, U, C, ?> k, U state, Rest<C, V> rest, Around<V, W> now) {
+    @Override public <U, C, V, W> Around<A, W> anew(K<?, ?, ?, U, C, ?> k, U state, Rest<C, V> rest, Around<V, W> now) {
       if (this == k.own) return k.its(k.own, state, rest, now);
       return new In<>(handler, this.state, this.rest, outer.anew(k, state, rest, now));
     }
@@ -425,7 +416,7 @@ public final class Fx {
   /** No part: the value is the program's. */
   private record Top<A>() implements Around<A, A> {
     @Override public A result(A value) { return value; }
-    @Override public <S, B, Y, W> Around<A, W> anew(K<?, ?, S, B, ?> k, S state, Rest<B, Y> rest, Around<Y, W> now) {
+    @Override public <S, B, Y, W> Around<A, W> anew(K<?, ?, ?, S, B, ?> k, S state, Rest<B, Y> rest, Around<Y, W> now) {
       throw new IllegalStateException("a rest without its handler's part");
     }
   }
@@ -562,7 +553,7 @@ public final class Fx {
 
     private <X, A, Y> At<Z> answered(Answer<X, ?, ?, ?, ?> answer, Asks<?, A> asks, Rest<A, Y> rest,
                                      Around<Y, Z> around, int more) {
-      return answer.asked(asks).answered(this, answer.answer, rest, around, more);
+      return on(answer.asked(asks).given(answer.answer), rest, around, more);
     }
 
     /** A clause is given the rest, to the end of its handler's part. */
@@ -570,7 +561,7 @@ public final class Fx {
                                                     Asks<?, A> asks, Rest<A, Y> rest, Around<Y, Z> around,
                                                     int more) {
       Asks<X, A> asked = with.asked(asks);
-      K<X, Y, S, B, R> k = new K<>(around, own);
+      K<X, A, Y, S, B, R> k = new K<>(asked, rest, around, own);
       Comp<B, R> does = with.clause().on(own.state, k);
       Resume<X, S, B, R> only = with instanceof Keep ? null : k.only(does);
       if (only != null) {
@@ -579,20 +570,18 @@ public final class Fx {
         // this move only where the part that answers is the innermost: found further out, the move is long as it
         // is, and going on within it was measured slower.
         own.state = only.state();
-        return asked.answered(this, only.value(), rest, around, own == around ? more : 0);
+        return on(asked.given(only.value()), rest, around, own == around ? more : 0);
       }
       // The rest is taken off, with its parts: they are the rest's now, and run by no one — so a rest that is kept
       // always is. The clause is a program of what is around that part; under it, unless the rest is kept, a mark:
       // was the rest gone on with.
-      k.rest = asked.after(rest);
       return new Run<>(does, with instanceof Keep ? own.rest : new Taken<>(k, own.rest), own.outer);
     }
 
     /** The part is left with a value: the rest is taken off, and nothing goes on with it. */
     private <X, F, S, P, B, R, W, A, Y> At<Z> left(In<F, S, P, B, R, W, Z> own, B value, Asks<X, A> asks,
                                                    Rest<A, Y> rest, Around<Y, Z> around) {
-      K<X, Y, S, B, R> k = new K<>(around, own);
-      k.rest = asks.after(rest);
+      K<X, A, Y, S, B, R> k = new K<>(asks, rest, around, own);
       return new Run<>(new Pure<B, R>(value), new Taken<>(k, own.rest), own.outer);
     }
 

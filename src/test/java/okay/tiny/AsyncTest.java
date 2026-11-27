@@ -167,4 +167,18 @@ class AsyncTest {
     assertEquals(6, state.join());
     assertEquals(List.of("Get", "Put", "Await", "Get", "Put"), seen);
   }
+
+  static <R extends Async> Comp<Long, R> sum(int left, long sum, Supplier<CompletionStage<Long>> work) {
+    return left == 0 ? pure(sum) : Std.<Long, R>await(work).flatMap(one -> sum(left - 1, sum + one, work));
+  }
+
+  /**
+   * Work that ends on another thread, a thousand times over: now it is done before the program asks, now after
+   * it has kept its rest, and now between the two — when the rest is run inside the clause that keeps it.
+   */
+  @Test
+  void workThatEndsOnAnotherThreadAtAnyMoment() throws Exception {
+    CompletableFuture<Long> sum = start(sum(1000, 0, () -> CompletableFuture.supplyAsync(() -> 1L)));
+    assertEquals(1000L, sum.get(30, TimeUnit.SECONDS));
+  }
 }

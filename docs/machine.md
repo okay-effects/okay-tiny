@@ -100,7 +100,7 @@ When a clause needs `k`:
 before                              the clause runs with
 around:  [C] [B] [H] [A]            around:  [A]
 rest:    steps of C                 rest:    a mark, then the steps after H
-k = (steps of C, the parts C..H, each with its state)
+k = (what was asked, the steps of C after it, the parts C..H, each with its state)
 ```
 
 Everything from the question to the end of the handler's own part `H` goes into `k` — two pointers. The parts
@@ -110,9 +110,10 @@ that stay outside, and why its own handler is not in force inside it.
 The mark holds `k`. When the clause ends and `k` was never applied, the rest was left, and whatever it was to
 close is closed.
 
-The clause is called first, with a `k` that has its parts and not yet its steps. If what the clause gave is
+The clause is called first. If what the clause gave is
 nothing but that `k` applied, nothing is taken off: the state is set and the answer given to what follows, as
-for `answer` — unless the rest is kept (`keep`). Only otherwise are the steps of `C` made and put in `k`.
+for `answer` — unless the rest is kept (`keep`). `k` itself is whole before the clause is called, and nothing
+of it is written afterwards: a clause may run it there and then.
 
 A clause that gives nothing but its own rest gone on with — `k.apply(answer, next)` — is seen at once: nothing
 is taken off, the state is set to `next`, and `answer` goes to the steps that were there. Only another answer

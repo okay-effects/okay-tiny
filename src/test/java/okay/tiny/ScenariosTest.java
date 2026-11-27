@@ -305,6 +305,19 @@ class ScenariosTest {
     assertEquals(List.of("going on", "closed"), log);
   }
 
+  /**
+   * A rest that is kept may be run inside its own clause, before that clause has ended: a callback given to work
+   * already done is called there and then. The rest is whole from the moment the clause has it.
+   */
+  @Test
+  void aRestKeptMayBeRunWithinItsOwnClause() {
+    Handler<Clock, Long, Long, Object> atOnce = folding(Clock.class, null, (s, a) -> a, op -> switch (op) {
+      case Clock.Now now -> keep(now, (s, k) -> pure(run(k.apply(7L, s))));
+    });
+    Comp<Long, Clock> part = perform(new Clock.Now()).flatMap(t -> perform(new Clock.Now()).map(u -> t + u));
+    assertEquals(14L, run(Fx.<Long>top().handler(atOnce).handle(part)));
+  }
+
   /** A state handler put anew at every level, and at the bottom a choice of the handler around them all. */
   static <R extends Std.Choice> Comp<Integer, R> deep(int level) {
     if (level == 0) return Std.choose(List.of(1, 2));
