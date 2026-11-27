@@ -74,4 +74,22 @@ public class StateBench {
         .handler(first()).handler(stock(Map.of())).handler(priced())
         .handler(clockAt(1)).handler(first()).handle(ticks(N)));
   }
+
+  // the template's program, with the effect written by hand and found by its class
+  sealed interface Cell {
+    record Get() implements Cell, Fx.Op<Integer, Cell> {}
+    record Put(Integer state) implements Cell, Fx.Op<Void, Cell> {}
+  }
+  static <R extends Cell> Comp<Integer, R> cells(int left) {
+    return left == 0 ? perform(new Cell.Get()) : perform(new Cell.Put(left)).flatMap(done -> cells(left - 1));
+  }
+  static <A, R> Fx.Handler<Cell, A, Std.Final<Integer, A>, R> cell(Integer initial) {
+    return folding(Cell.class, initial, Std.Final::new, op -> switch (op) {
+      case Cell.Get get -> on(get, (s, k) -> k.apply(s, s));
+      case Cell.Put put -> on(put, (s, k) -> k.apply(null, put.state()));
+    });
+  }
+  @Benchmark public Object byHandAlone() {
+    return run(Fx.<Std.Final<Integer, Integer>>top().handler(cell(0)).handle(cells(N)));
+  }
 }

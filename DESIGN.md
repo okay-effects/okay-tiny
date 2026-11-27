@@ -241,6 +241,12 @@ answers is the innermost: for a template's state the outermost of seven, going o
 ns where the way back to the loop costs 14.6 (it was 15.5) — a longer move, which the JIT no longer made one
 piece of.
 
+**A template costs what its program costs.** A state said of `Std`'s template makes 187 bytes an operation
+where the counter makes 92, and that is not the template: the same program over an effect written by hand and
+found by its class (`StateBench.byHandAlone`) makes 172 and takes the same time within what a run varies by.
+The difference from the counter is the program's — an operation that holds a boxed value, a clause that
+reads it, a handler of two operations and not one.
+
 ## 6. What is not here
 
 - **Direct style, in the kernel.** Without threads or a transformation there is none in Java. It is beside the
