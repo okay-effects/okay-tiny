@@ -32,8 +32,10 @@ public final class Fx {
   record Mapped<X, A, R>(Comp<X, R> first, Function<? super X, ? extends A> f) implements Comp<A, R> {}
   record Perform<A, R>(Op<A, ? super R> op) implements Comp<A, R> {}
   record FlatMap<X, A, R>(Comp<X, R> first, Function<? super X, ? extends Comp<A, R>> next) implements Comp<A, R> {}
-  record Part<A, R>(Handler<?, ?, ?, ?> handler, Comp<?, ?> part) implements Comp<A, R> {}
-  record Resume<A, R>(K<?, ?, ?, ?> k, Object value, Object state) implements Comp<A, R> {}
+  /** The part gives A and asks V; the handler is of an effect V has, gives B, and asks what stays, R. */
+  record Part<A, B, V, R>(Handler<? super V, A, B, ? super R> handler, Comp<A, ? super V> part)
+      implements Comp<B, R> {}
+  record Resume<X, S, B, R>(K<X, S, B, R> k, X value, S state) implements Comp<B, R> {}
   record Ensure<A, R>(Comp<A, R> part, Runnable after) implements Comp<A, R> {}
   record Defer<A, R>(Supplier<? extends Comp<A, ? super R>> program) implements Comp<A, R> {}
 
@@ -196,9 +198,10 @@ public final class Fx {
     private Handlers(Function<Comp<?, ?>, Comp<?, ?>> around) { this.around = around; }
 
     /** A handler may itself ask only what stays: R. */
+    @SuppressWarnings("unchecked")
     public <V extends W, C> Handlers<R, V, A, C> handler(Handler<? super V, B, C, ? super R> handler) {
       Objects.requireNonNull(handler, "a handler");
-      return new Handlers<>(part -> new Part<>(handler, around.apply(part)));
+      return new Handlers<>(part -> new Part<B, C, V, R>(handler, (Comp<B, ? super V>) around.apply(part)));
     }
 
     /** javac refuses a part that asks more than W. */
@@ -262,7 +265,7 @@ public final class Fx {
             now = e.part();
             continue;
           }
-          case Part<?, ?> part -> {                     // a handler around a part of the program
+          case Part<?, ?, ?, ?> part -> {                     // a handler around a part of the program
             if (around != null) states = with(states, around.depth, state, states != taken);
             around = new Around(part.handler(), around == null ? 0 : around.depth + 1, rest, around);
             state = part.handler().state;
@@ -304,7 +307,7 @@ public final class Fx {
           //
           // The state of the innermost part is in `state`, those of the others in `states`, by depth. So: nothing
           // inside its own part — only `state` is set; else one copy of the array, with `next` at its own depth.
-          case Resume<?, ?> r -> {                      // the rest is put back, on top of what the clause is at
+          case Resume<?, ?, ?, ?> r -> {                      // the rest is put back, on top of what the clause is at
             K<?, ?, ?, ?> k = r.k();
             k.gone = true;
             if (rest != null && rest.mark == k) rest = rest.after;      // the clause ends with this: its mark too
