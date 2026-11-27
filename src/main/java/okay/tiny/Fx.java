@@ -23,27 +23,25 @@ public final class Fx {
   /** A program is data: A is what it gives, R the effects it may ask. */
   public sealed interface Comp<A, R> {
     /** Q: the row of the whole is the row of both parts; a program of fewer effects is one of more as it is. */
-    @SuppressWarnings("unchecked")
     default <B, Q extends R> Comp<B, Q> flatMap(Function<? super A, ? extends Comp<B, Q>> next) {
-      return new FlatMap<>((Comp<A, Q>) this, next);          // R is a phantom: nothing of it is in the value
+      return new FlatMap<A, B, Q>(this, next);
     }
 
-    @SuppressWarnings("unchecked")
     default <B, Q extends R> Comp<B, Q> map(Function<? super A, ? extends B> f) {
-      return new Mapped<>((Comp<A, Q>) this, f);
+      return new Mapped<A, B, Q>(this, f);
     }
   }
 
   record Pure<A, R>(A value) implements Comp<A, R> {}
-  record Mapped<X, A, R>(Comp<X, R> first, Function<? super X, ? extends A> f) implements Comp<A, R> {}
+  record Mapped<X, A, R>(Comp<X, ? super R> first, Function<? super X, ? extends A> f) implements Comp<A, R> {}
   /** An operation asked, and nothing after it. With flatMap it is the node below: one, not two. */
   record Perform<A, R>(Op<A, ? super R> op) implements Comp<A, R>, Asks<A, A> {
     @Override public <B, Q extends R> Comp<B, Q> flatMap(Function<? super A, ? extends Comp<B, Q>> next) {
       return new Asking<>(op, next);
     }
     @Override public <Y> Rest<A, Y> after(Rest<A, Y> rest) { return rest; }
-    @Override public <Y, Z> At<Z> answered(Machine<Z> machine, A answer, Run<A, Y, Z> at, Rest<A, Y> rest,
-                                           Around<Y, Z> around, int more) {
+    @Override public <Y, Z> At<Z> answered(Machine<Z> machine, A answer, Rest<A, Y> rest, Around<Y, Z> around,
+                                           int more) {
       return machine.give(answer, rest, around);
     }
   }
@@ -51,10 +49,9 @@ public final class Fx {
   record Asking<X, A, R>(Op<X, ? super R> op, Function<? super X, ? extends Comp<A, R>> next)
       implements Comp<A, R>, Asks<X, A> {
     @Override public <Y> Rest<X, Y> after(Rest<A, Y> rest) { return new Then<>(next, rest); }
-    @Override public <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Run<A, Y, Z> at, Rest<A, Y> rest,
-                                           Around<Y, Z> around, int more) {
-      Comp<A, ?> now = next.apply(answer);
-      return more > 0 ? machine.run(at, now, rest, around, more - 1) : machine.on(at, now, rest, around);
+    @Override public <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Rest<A, Y> rest, Around<Y, Z> around,
+                                           int more) {
+      return machine.on(next.apply(answer), rest, around, more);
     }
   }
   /**
@@ -64,10 +61,10 @@ public final class Fx {
   private sealed interface Asks<X, A> {
     Op<X, ?> op();
     <Y> Rest<X, Y> after(Rest<A, Y> rest);
-    <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around,
-                          int more);
+    <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Rest<A, Y> rest, Around<Y, Z> around, int more);
   }
-  record FlatMap<X, A, R>(Comp<X, R> first, Function<? super X, ? extends Comp<A, R>> next) implements Comp<A, R> {}
+  record FlatMap<X, A, R>(Comp<X, ? super R> first, Function<? super X, ? extends Comp<A, R>> next)
+      implements Comp<A, R> {}
   /** The part gives A and asks V; the handler is of an effect V has, gives B, and asks what stays, R. */
   record Part<A, B, V, R>(Handler<? super V, A, B, ? super R> handler, Comp<A, ? super V> part)
       implements Comp<B, R> {}
@@ -308,7 +305,10 @@ public final class Fx {
    * {@code Fx.<R, B>row().handler(outer).handler(inner).handle(part)}: handlers around a part of a program, the
    * outermost first. B is what the whole gives; R the effects that stay, unanswered.
    */
-  public static <R, B> Handlers<R, R, B, B> row() { return new Handlers<>(part -> part); }
+  @SuppressWarnings("unchecked")
+  public static <R, B> Handlers<R, R, B, B> row() {
+    return new Handlers<R, R, B, B>(part -> (Comp<B, R>) part);      // R is a phantom: nothing of it is in the value
+  }
 
   /** The top: no effect is left. {@code run(Fx.<B>top().handler(h).handle(program))} is a whole application. */
   public static <B> Handlers<Object, Object, B, B> top() { return row(); }
@@ -319,24 +319,22 @@ public final class Fx {
    * handler, or by the part.
    */
   public static final class Handlers<R, W, A, B> {
-    private final Function<Comp<?, ?>, Comp<?, ?>> around;     // what is put inside, with the handlers around it
+    private final Function<Comp<A, ? super W>, Comp<B, R>> around;   // what is put inside, with the handlers around
 
-    private Handlers(Function<Comp<?, ?>, Comp<?, ?>> around) { this.around = around; }
+    private Handlers(Function<Comp<A, ? super W>, Comp<B, R>> around) { this.around = around; }
 
     /**
      * The next handler, inside those put so far. Its clauses ask exactly what is around it, W — and so the rest
      * they are given says all it still asks: a handler whose row is less than W is refused here.
      */
-    @SuppressWarnings("unchecked")
     public <V extends W, P> Handlers<R, V, P, B> handler(Handler<? super V, P, A, W> handler) {
       Objects.requireNonNull(handler, "a handler");
-      return new Handlers<>(part -> around.apply(new Part<P, A, V, W>(handler, (Comp<P, ? super V>) part)));
+      return new Handlers<R, V, P, B>(part -> around.apply(new Part<P, A, V, W>(handler, part)));
     }
 
     /** javac refuses a part that asks more than W. */
-    @SuppressWarnings("unchecked")
     public Comp<B, R> handle(Comp<A, ? super W> part) {
-      return (Comp<B, R>) around.apply(part);
+      return around.apply(part);
     }
   }
 
@@ -450,22 +448,8 @@ public final class Fx {
   }
 
   /** A program to run, the steps that take its value and the parts those steps end in. */
-  private static final class Run<A, Y, Z> implements At<Z> {
-    private Comp<A, ?> now;                  // moves on where it is, while what it gives, A, is the same
-    private final Rest<A, Y> rest;
-    private final Around<Y, Z> around;
-
-    private Run(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around) {
-      this.now = now; this.rest = rest; this.around = around;
-    }
-
-    @Override public At<Z> next(Machine<Z> machine) { return machine.run(this, now, rest, around, Machine.STEPS); }
-
-    /** The same steps and parts, another program of the same A: this, and nothing is made. */
-    private At<Z> on(Comp<A, ?> now) {
-      this.now = now;
-      return this;
-    }
+  private record Run<A, Y, Z>(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around) implements At<Z> {
+    @Override public At<Z> next(Machine<Z> machine) { return machine.run(now, rest, around, Machine.STEPS); }
   }
 
   /** A value, the steps that take it and the parts those steps end in. */
@@ -503,33 +487,33 @@ public final class Fx {
      * `at`: the Run this move began with, where it is still of these types — to move on in place; else none.
      * `more`: how many nodes this move may still go into before it gives the next move its turn.
      */
-    private <A, Y> At<Z> run(Run<A, Y, Z> at, Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around, int more) {
+    private <A, Y> At<Z> run(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around, int more) {
       return switch (now) {
         case Pure<A, ?> pure -> give(pure.value(), rest, around);
-        case Perform<A, ?> asks -> ask(asks, at, rest, around, more);
-        case Asking<?, A, ?> asks -> ask(asks, at, rest, around, more);
+        case Perform<A, ?> asks -> ask(asks, rest, around, more);
+        case Asking<?, A, ?> asks -> ask(asks, rest, around, more);
         case FlatMap<?, A, ?> bound -> bind(bound, rest, around, more);
         case Mapped<?, A, ?> mapped -> map(mapped, rest, around, more);
         case Ensure<A, ?> ensured -> new Run<>(ensured.part(), new Closing<>(ensured.after(), rest), around);
         case Part<?, A, ?, ?> part -> part(part, rest, around);
         case Resume<?, ?, A, ?> on -> resume(on, rest, around);
-        case Defer<A, ?> deferred -> on(at, deferred.program().get(), rest, around);
+        case Defer<A, ?> deferred -> on(deferred.program().get(), rest, around, more);
       };
     }
 
     /** The same steps and parts, another program of the same A: the Run it began with, where there is one. */
-    private <A, Y> At<Z> on(Run<A, Y, Z> at, Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around) {
-      return at != null ? at.on(now) : new Run<>(now, rest, around);
+    private <A, Y> At<Z> on(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around, int more) {
+      return more > 0 ? run(now, rest, around, more - 1) : new Run<>(now, rest, around);
     }
 
     private <X, A, Y> At<Z> bind(FlatMap<X, A, ?> bound, Rest<A, Y> rest, Around<Y, Z> around, int more) {
       Rest<X, Y> then = new Then<X, A, Y>(bound.next(), rest);
-      return more > 0 ? run(null, bound.first(), then, around, more - 1) : new Run<>(bound.first(), then, around);
+      return on(bound.first(), then, around, more);
     }
 
     private <X, A, Y> At<Z> map(Mapped<X, A, ?> mapped, Rest<A, Y> rest, Around<Y, Z> around, int more) {
       Rest<X, Y> then = new Mapping<X, A, Y>(mapped.f(), rest);
-      return more > 0 ? run(null, mapped.first(), then, around, more - 1) : new Run<>(mapped.first(), then, around);
+      return on(mapped.first(), then, around, more);
     }
 
     /** A handler around a part of the program: the part is run with no steps yet, in a part of its own. */
@@ -545,7 +529,7 @@ public final class Fx {
     }
 
     /** An operation is asked: the nearest part whose handler's effect it is of answers. */
-    private <X, A, Y> At<Z> ask(Asks<X, A> asks, Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around, int more) {
+    private <X, A, Y> At<Z> ask(Asks<X, A> asks, Rest<A, Y> rest, Around<Y, Z> around, int more) {
       Op<X, ?> op = asks.op();
       asked = op;
       if (see != null) see.accept(op);
@@ -553,7 +537,7 @@ public final class Fx {
       Around<?, Z> own = around;
       while (own instanceof In<?, ?, ?, ?, ?, ?, Z> part) {
         if (of == null ? part.handler.effect.isInstance(op) : part.handler.of == of) {
-          return answer(part, asks, op, at, rest, around, more);
+          return answer(part, asks, op, rest, around, more);
         }
         own = part.outer;
       }
@@ -562,11 +546,10 @@ public final class Fx {
 
     /** This part answers: the operation is of its handler's effect. */
     private <F, S, P, B, R, W, X, A, Y> At<Z> answer(In<F, S, P, B, R, W, Z> own, Asks<X, A> asks, Op<X, ?> op,
-                                                     Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around,
-                                                     int more) {
+                                                     Rest<A, Y> rest, Around<Y, Z> around, int more) {
       switch (own.handler.cases.apply(own.handler.own(op))) {
         case Answer<?, F, S, B, R> answered -> {
-          return asks.answered(this, answered.of(op), at, rest, around, more);
+          return asks.answered(this, answered.of(op), rest, around, more);
         }
         case Takes<F, S, B, R> takes -> {                 // the rest, to the end of the handler's part
           Rest<X, Y> after = asks.after(rest);
