@@ -110,8 +110,8 @@ Three things are not such a call:
 - **A call with something after it** — `again(n - 1).map(v -> v + 1)` — has that something to come back to.
   Deferred, it takes no stack, but the heap grows with the depth.
 - **A call inside a handler put anew, or inside `ensuring`** — `row().handler(h).handle(again(n - 1))` — has the
-  handler's `ret`, or the closing, to come back to. Each level is a part more, and a part more costs more the
-  deeper it is. Put the handler, or the `ensuring`, around the loop and not in it.
+  handler's `ret`, or the closing, to come back to. Each level is a part more, kept to the end. Put the
+  handler, or the `ensuring`, around the loop and not in it.
 
 A program of fewer effects is used inside one of more as it is. `place` asks five effects and calls
 `reserveAll`, which asks two; nothing is written for that.

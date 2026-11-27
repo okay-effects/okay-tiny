@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 247 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 273 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -116,11 +116,18 @@ it is nothing. `ensuring` and the note of where a program failed cost one to two
 under every clause that is given the rest, and a test for marks at every step.
 
 **Tail calls.** A call in the tail of a function given to `flatMap` leaves nothing in the stack of steps: two
-functions that call each other 10^8 times run in a stack of 256k and a heap of 64m, at 47 ns a turn with a
-state read and written (two operations), 6 ns with nothing asked (`defer`). Not tail calls, measured too: a
+functions that call each other 10^8 times run in a stack of 256k and a heap of 64m, at 43 ns a turn with a
+state read and written (two operations), 2.2 ns with nothing asked (`defer`). Not tail calls, measured too: a
 call with a `map` after it, or inside `ensuring` — the heap grows by a step a level; a call inside a handler put
-anew — a part a level, and each new part copies the array of states, so the time is quadratic in the depth
-(10^5 levels: 0.6 s). Handlers are meant to be a few deep; the array was chosen for that (section 4).
+anew — a part a level, at the same cost each (3·10^6 levels: 0.4 s).
+
+`defer` is a constructor of the program, and one line of the loop. As `pure(null).flatMap(..)` it was two turns
+and four objects, 5.9 ns; it is the one word a program without it cannot say cheaply — a call put off — and the
+kernel's own `Part` was already such a thing for handlers. It is the last case of the loop's `switch`: put
+before `Part` and `Perform` it cost a counter 3 ns an operation.
+
+The array of states is written in place while no rest taken off has it (section 3). Before that every new part
+copied it, and parts one in another cost the square of their depth: 10^5 levels, 0.6 s; now 0.05 s.
 
 ## 6. What is not here
 

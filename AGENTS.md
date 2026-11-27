@@ -71,7 +71,7 @@ Loops and branches, instead of a recursion each time: `forEach(items, item -> pr
 
 A call that is the last thing a `flatMap`'s function does — of itself or of another function — is a tail call: no
 stack, no heap, for ever. With nothing asked before it, write `defer(() -> other(n - 1))`. A handler or `ensuring`
-goes around a loop, not inside it: inside, each turn is a part more.
+goes around a loop, not inside it: inside, each turn is a part more, kept to the end.
 
 ### Rules
 

@@ -58,7 +58,7 @@ public class Handlers {
    * the thread that called run: so the part's statements are in it.
    */
   public <A, R> Comp<A, R> transactional(Comp<A, R> part) {
-    return Fx.<Object, R>pure(null).flatMap(reached -> {
+    return defer(() -> {
       TransactionStatus status = transactions.getTransaction(new DefaultTransactionDefinition());
       boolean[] committed = {false};
       return ensuring(part.map(a -> { transactions.commit(status); committed[0] = true; return a; }),

@@ -94,6 +94,11 @@ The innermost handler's state is a variable of the loop: for it, a new state is 
 in `states`, by depth; a new state for one of them is one copy of that array. Entering a part moves the
 innermost state into the array; leaving a part brings the next one out.
 
+The array is written in place while it is the loop's alone (`alone`), and has room to grow; it stops being
+the loop's alone when a rest is taken off with it, and is the loop's again when the loop has made a copy. So a
+part more costs the same however many are around it, and a rest taken off still finds its states as they
+were (`ScenariosTest.theStatesOfARestTakenOffAreItsOwn`).
+
 The alternative — the state in each part's record — makes a new state for an outer handler cost a new record
 for every part inside it. `DESIGN.md` has the numbers.
 

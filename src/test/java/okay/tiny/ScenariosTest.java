@@ -4,8 +4,10 @@ import static okay.tiny.Fx.*;
 import static okay.tiny.Shop.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeout;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -273,28 +275,92 @@ class ScenariosTest {
     assertEquals(List.of(new Stock.Reserve("tea", 2)), seen);
   }
 
-/** A handler that stops its part at each operation and gives the rest as a value: to go on with, later. */
-static <A> Handler<Clock, A, Supplier<A>, Object> paused(List<String> log) {
-  return folding(Clock.class, null, (s, a) -> () -> a, op -> switch (op) {
-    case Clock.Now now -> keep(now, (s, k) -> pure(() -> {
-      log.add("going on");
-      return run(k.apply(7L, s)).get();
-    }));
-  });
-}
+  /** A handler that stops its part at each operation and gives the rest as a value: to go on with, later. */
+  static <A> Handler<Clock, A, Supplier<A>, Object> paused(List<String> log) {
+    return folding(Clock.class, null, (s, a) -> () -> a, op -> switch (op) {
+      case Clock.Now now -> keep(now, (s, k) -> pure(() -> {
+        log.add("going on");
+        return run(k.apply(7L, s)).get();
+      }));
+    });
+  }
 
-/** keep: the rest is gone on with after its clause, and the run it was taken in, have ended — and is closed once. */
-@Test
-void aRestKeptIsGoneOnWithLaterInARunOfItsOwn() {
-  var log = new ArrayList<String>();
-  Comp<Long, Clock> part = ensuring(perform(new Clock.Now()), () -> log.add("closed"));
-  Supplier<Long> later = run(Fx.<Long>top().handler(paused(log)).handle(part.map(t -> t + 1)));
-  assertEquals(List.of(), log);                       // the part has not ended: nothing is closed yet
-  assertEquals(8L, later.get());
-  assertEquals(List.of("going on", "closed"), log);
-}
+  /** keep: the rest is gone on with after its clause, and the run it was taken in, have ended; and is closed once. */
+  @Test
+  void aRestKeptIsGoneOnWithLaterInARunOfItsOwn() {
+    var log = new ArrayList<String>();
+    Comp<Long, Clock> part = ensuring(perform(new Clock.Now()), () -> log.add("closed"));
+    Supplier<Long> later = run(Fx.<Long>top().handler(paused(log)).handle(part.map(t -> t + 1)));
+    assertEquals(List.of(), log);                       // the part has not ended: nothing is closed yet
+    assertEquals(8L, later.get());
+    assertEquals(List.of("going on", "closed"), log);
+  }
 
-static <R extends Clock> Comp<Long, R> mapped(int left, long sum) {
+  /** A state handler put anew at every level, and at the bottom a choice of the handler around them all. */
+  static <R extends Std.Choice> Comp<Integer, R> deep(int level) {
+    if (level == 0) return Std.choose(List.of(1, 2));
+    Comp<Integer, R> inside = Fx.<R, Void>row().handler(Std.<Integer, Void, R>state(level))
+        .handle(Tower.level(level)).map(Std.Final::state);
+    return inside.flatMap(sum -> Fx.<R, Integer>row().handler(Std.<Integer, Integer, R>env(sum))
+        .handle(Std.ask()));                           // and a part more, put after the rest has gone on
+  }
+
+  interface Tower {
+    static <R extends Std.Choice & Std.State<Integer>> Comp<Void, R> level(int level) {
+      return ScenariosTest.<R>deep(level - 1).flatMap(below -> Std.<Integer, R>update(own -> own + below));
+    }
+  }
+
+  /**
+   * Parts one in another, three hundred deep, and the rest of them all gone on with twice: the second way finds the
+   * states as they were when the choice was asked, whatever the first did to its own.
+   */
+  @Test
+  void partsDeepOneInAnotherKeepTheirStatesOnEveryWay() {
+    int levels = 300, sum = levels * (levels + 1) / 2;
+    assertEquals(List.of(sum + 1, sum + 2), run(Fx.<Integer>top().handler(Std.all()).handle(deep(levels))));
+  }
+
+  static <R> Comp<Long, R> under(int levels) {
+    return levels == 0 ? pure(0L) : defer(() ->
+        Fx.<R, Long>row().handler(Std.<Integer, Long, R>env(1)).handle(ScenariosTest.<R>under(levels - 1)));
+  }
+
+  /** And a part more costs the same however deep it is: three hundred thousand, one in another. */
+  @Test
+  void aPartMoreCostsTheSameHoweverDeep() {
+    assertEquals(0L, assertTimeout(Duration.ofSeconds(20), () -> run(ScenariosTest.<Object>under(300_000))));
+  }
+
+  /** Three parts one in another, each with a state of its own, and nothing else. */
+  static Comp<Integer, Object> threeParts() {
+    Comp<Integer, Object> inner = Fx.<Integer>top().handler(Std.state(300))
+        .handle(Std.<Integer, Std.State<Integer>>get()).map(Std.Final::state);
+    Comp<Integer, Object> middle = Fx.<Integer>top().handler(Std.state(200)).handle(inner).map(Std.Final::state);
+    return Fx.<Integer>top().handler(Std.state(100)).handle(middle).map(Std.Final::state);
+  }
+
+  /** A clock whose clause runs parts of its own before it goes on with the rest. */
+  static <B> Handler<Clock, B, B, Object> busyClock() {
+    return handling(Clock.class, op -> switch (op) {
+      case Clock.Now now -> on(now, (s, k) -> threeParts().flatMap(done -> k.apply(7L, s)));
+    });
+  }
+
+  static <R extends Clock & Std.Emit<String> & Std.State<Integer>> Comp<String, R> toldAroundTheClock() {
+    return Std.<String, R>tell("before").flatMap(x -> perform(new Clock.Now()))
+        .flatMap(at -> Std.<String, R>tell("at " + at)).map(x -> "done");
+  }
+
+  /** What a clause runs before it goes on does not reach the states of the rest it was given. */
+  @Test
+  void theStatesOfARestTakenOffAreItsOwn() {
+    assertEquals(new Std.Told<>(List.of("before", "at 7"), new Std.Final<>(0, "done")),
+        run(Fx.<String>top().handler(Std.state(0)).handler(Std.told(String.class)).handler(busyClock())
+            .handle(toldAroundTheClock())));
+  }
+
+  static <R extends Clock> Comp<Long, R> mapped(int left, long sum) {
     return left == 0 ? pure(sum)
         : perform(new Clock.Now()).map(t -> t + 1).map(t -> t - 1).flatMap(t -> mapped(left - 1, sum + t));
   }

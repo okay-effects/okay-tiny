@@ -25,6 +25,7 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 | `p.flatMap(a -> q)` | `Comp<B, Q>`, `Q extends R` | `p`, then `q` made of what it gave |
 | `p.map(a -> b)` | `Comp<B, Q>`, `Q extends R` | `p`, then `b` made of what it gave |
 | `ensuring(part, after)` | `Comp<A, R>` | `part`; `after` is run when it ends, however it ends |
+| `defer(() -> program)` | `Comp<A, R>` | the program, made when it is reached: a call with nothing asked before it, as a step of the machine |
 
 `Q extends R` is how a program of fewer effects is one of more: the row of a chain is the row of its parts.
 
@@ -80,7 +81,6 @@ handler there with `row()`.
 | `fold(items, initial, step)` | `Comp<S, R>`: `step: (state, item) -> Comp<S, R>` |
 | `iterate(initial, goesOn, step)` | `Comp<S, R>`: `step` again while `goesOn(state)` |
 | `when(condition, program)` | `Comp<Void, R>` |
-| `defer(() -> program)` | the program, made when it is reached: a call with nothing asked before it, as a step of the machine |
 | `zip(one, other, both)` | `Comp<C, R>`: one, then the other, `both(a, b)` |
 
 Items are any `Iterable`, read once into a list when the program is made. A body's row may be less than `R`.

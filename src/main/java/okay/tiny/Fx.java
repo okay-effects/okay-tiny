@@ -5,6 +5,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /** Algebraic effects on a free monad, the least of it: one file, Java 21, no threads, no reflection, no dependency. */
 public final class Fx {
@@ -34,8 +35,17 @@ public final class Fx {
   record Part<A, R>(Handler<?, ?, ?, ?> handler, Comp<?, ?> part) implements Comp<A, R> {}
   record Resume<A, R>(K<?, ?, ?, ?> k, Object value, Object state) implements Comp<A, R> {}
   record Ensure<A, R>(Comp<A, R> part, Runnable after) implements Comp<A, R> {}
+  record Defer<A, R>(Supplier<? extends Comp<A, ? super R>> program) implements Comp<A, R> {}
 
   public static <A, R> Comp<A, R> pure(A value) { return new Pure<>(value); }
+
+  /**
+   * The program is made when it is reached, not where this is written. So a call that asks nothing before it calls
+   * again — n == 0 ? pure(true) : defer(() -> odd(n - 1)) — is a step of the machine, and takes no stack.
+   */
+  public static <A, R> Comp<A, R> defer(Supplier<? extends Comp<A, ? super R>> program) {
+    return new Defer<>(Objects.requireNonNull(program, "a program"));
+  }
 
   /** The row has the effect: that is the one bound, R extends F. */
   public static <A, F, R extends F> Comp<A, R> perform(Op<A, F> op) {
@@ -229,7 +239,8 @@ public final class Fx {
     Rest rest = null;                     // the steps of the part being run
     Around around = null;                 // that part, and those around it
     Object state = null;                  // the state of that part's handler; and of those around it,
-    Object[] states = {};                 //   each at its part's depth: an array never changed once it is shared
+    Object[] states = {};                 //   each at its part's depth: an array never changed once it is shared,
+    boolean alone = true;                 //   and written in place while no rest taken off has it
     Object asked = null;                  // the operation asked last
     try {
       while (true) {
@@ -252,7 +263,11 @@ public final class Fx {
             continue;
           }
           case Part<?, ?> part -> {                     // a handler around a part of the program
-            if (around != null) states = with(states, around.depth, state);
+            if (around != null) {
+              Object[] next = with(states, around.depth, state, alone);
+              alone |= next != states;
+              states = next;
+            }
             around = new Around(part.handler(), around == null ? 0 : around.depth + 1, rest, around);
             state = part.handler().state;
             rest = null;
@@ -271,6 +286,7 @@ public final class Fx {
             }
             if (clause.clause != null) {                // the rest, to the end of the handler's part, is taken off
               K<Object, Object, Object, Object> k = new K<>(rest, around, own, states, state);
+              alone = false;
               Object its = own == around ? state : states[own.depth];
               // the clause is a program of what is around that part; under it, a mark: was the rest gone on with
               rest = clause.kept ? own.rest : new Rest(null, true, k, own.rest);
@@ -298,7 +314,11 @@ public final class Fx {
             if (rest != null && rest.mark == k) rest = rest.after;      // the clause ends with this: its mark too
             int depth = around == null ? 0 : around.depth + 1;          // of the handler's own part, as put now
             int inside = k.top.depth - k.own.depth;                     // the parts the rest has inside that one
-            if (around != null) states = with(states, around.depth, state);
+            if (around != null) {
+              Object[] kept = with(states, around.depth, state, alone);
+              alone |= kept != states;
+              states = kept;
+            }
             if (inside > 0 || depth != k.own.depth) {   // the states inside: as they were when it asked
               Object[] next;
               if (states == k.states && depth == k.own.depth) next = states.clone(); // nothing around has changed
@@ -308,12 +328,17 @@ public final class Fx {
               }
               next[depth] = r.state();
               states = next;
+              alone = true;
             }
             state = inside > 0 ? k.state : r.state();   // its own: the next one
             boolean same = rest == k.own.rest && around == k.own.outer; // a clause that only goes on: no part anew
             around = same ? k.top : k.onto(k.top, depth - k.own.depth, rest, around);
             rest = k.rest;
             value = r.value();
+          }
+          case Defer<?, ?> d -> {
+            now = d.program().get();
+            continue;
           }
         }
         while (true) {
@@ -345,10 +370,19 @@ public final class Fx {
     }
   }
 
-  /** The states with this one at this depth: the same array where it is there already. */
-  private static Object[] with(Object[] states, int depth, Object state) {
-    if (depth < states.length && states[depth] == state) return states;
-    Object[] next = Arrays.copyOf(states, Math.max(states.length, depth + 1));
+  /**
+   * The states with this one at this depth: the same array where it is there already, or where the array is the
+   * loop's alone and has the room; else a copy, with room to grow — so parts put one in another cost the same each.
+   */
+  private static Object[] with(Object[] states, int depth, Object state, boolean alone) {
+    if (depth < states.length) {
+      if (states[depth] == state) return states;
+      if (alone) {
+        states[depth] = state;
+        return states;
+      }
+    }
+    Object[] next = Arrays.copyOf(states, Math.max(states.length, depth + 2 + (depth >> 1)));
     next[depth] = state;
     return next;
   }
