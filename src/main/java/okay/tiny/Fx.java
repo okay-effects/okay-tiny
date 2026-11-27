@@ -43,7 +43,7 @@ public final class Fx {
     }
     @Override public <Y> Rest<A, Y> after(Rest<A, Y> rest) { return rest; }
     @Override public <Y, Z> At<Z> answered(Machine<Z> machine, A answer, Run<A, Y, Z> at, Rest<A, Y> rest,
-                                           Around<Y, Z> around) {
+                                           Around<Y, Z> around, int more) {
       return machine.give(answer, rest, around);
     }
   }
@@ -52,8 +52,9 @@ public final class Fx {
       implements Comp<A, R>, Asks<X, A> {
     @Override public <Y> Rest<X, Y> after(Rest<A, Y> rest) { return new Then<>(next, rest); }
     @Override public <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Run<A, Y, Z> at, Rest<A, Y> rest,
-                                           Around<Y, Z> around) {
-      return machine.on(at, next.apply(answer), rest, around);
+                                           Around<Y, Z> around, int more) {
+      Comp<A, ?> now = next.apply(answer);
+      return more > 0 ? machine.run(at, now, rest, around, more - 1) : machine.on(at, now, rest, around);
     }
   }
   /**
@@ -63,7 +64,8 @@ public final class Fx {
   private sealed interface Asks<X, A> {
     Op<X, ?> op();
     <Y> Rest<X, Y> after(Rest<A, Y> rest);
-    <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around);
+    <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around,
+                          int more);
   }
   record FlatMap<X, A, R>(Comp<X, R> first, Function<? super X, ? extends Comp<A, R>> next) implements Comp<A, R> {}
   /** The part gives A and asks V; the handler is of an effect V has, gives B, and asks what stays, R. */
@@ -504,8 +506,8 @@ public final class Fx {
     private <A, Y> At<Z> run(Run<A, Y, Z> at, Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around, int more) {
       return switch (now) {
         case Pure<A, ?> pure -> give(pure.value(), rest, around);
-        case Perform<A, ?> asks -> ask(asks, at, rest, around);
-        case Asking<?, A, ?> asks -> ask(asks, at, rest, around);
+        case Perform<A, ?> asks -> ask(asks, at, rest, around, more);
+        case Asking<?, A, ?> asks -> ask(asks, at, rest, around, more);
         case FlatMap<?, A, ?> bound -> bind(bound, rest, around, more);
         case Mapped<?, A, ?> mapped -> map(mapped, rest, around, more);
         case Ensure<A, ?> ensured -> new Run<>(ensured.part(), new Closing<>(ensured.after(), rest), around);
@@ -543,7 +545,7 @@ public final class Fx {
     }
 
     /** An operation is asked: the nearest part whose handler's effect it is of answers. */
-    private <X, A, Y> At<Z> ask(Asks<X, A> asks, Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around) {
+    private <X, A, Y> At<Z> ask(Asks<X, A> asks, Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around, int more) {
       Op<X, ?> op = asks.op();
       asked = op;
       if (see != null) see.accept(op);
@@ -551,7 +553,7 @@ public final class Fx {
       Around<?, Z> own = around;
       while (own instanceof In<?, ?, ?, ?, ?, ?, Z> part) {
         if (of == null ? part.handler.effect.isInstance(op) : part.handler.of == of) {
-          return answer(part, asks, op, at, rest, around);
+          return answer(part, asks, op, at, rest, around, more);
         }
         own = part.outer;
       }
@@ -560,10 +562,11 @@ public final class Fx {
 
     /** This part answers: the operation is of its handler's effect. */
     private <F, S, P, B, R, W, X, A, Y> At<Z> answer(In<F, S, P, B, R, W, Z> own, Asks<X, A> asks, Op<X, ?> op,
-                                                     Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around) {
+                                                     Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around,
+                                                     int more) {
       switch (own.handler.cases.apply(own.handler.own(op))) {
         case Answer<?, F, S, B, R> answered -> {
-          return asks.answered(this, answered.of(op), at, rest, around);
+          return asks.answered(this, answered.of(op), at, rest, around, more);
         }
         case Takes<F, S, B, R> takes -> {                 // the rest, to the end of the handler's part
           Rest<X, Y> after = asks.after(rest);

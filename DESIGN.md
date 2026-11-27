@@ -150,7 +150,7 @@ a stack of steps: steps are `Rest<A, Y>`, from a value of `A` to the value of th
 | a block of named answers asked in rounds (`plan`) | it lived on sets of operations |
 | the state in the stack's records | a handler with a state outside six others cost 57 ns an operation, not 30 |
 | the effect's class read from an empty varargs array | see above |
-| the machine as one loop over variables of type `Object` — the program, the value, the steps, the parts — with casts where a hidden type was opened | a trampoline of typed moves over `At<Z>`. A state costs the same or less; an operation answered in place 6.7 ns, not 5.2; 118 lines more |
+| the machine as one loop over variables of type `Object` — the program, the value, the steps, the parts — with casts where a hidden type was opened | a trampoline of typed moves over `At<Z>`. A state costs the same or less; an operation answered in place 6.0 ns, not 5.0 (section 5 says of what); 118 lines more |
 | the typed moves calling each other, the three put down in fields every 32 calls | a call stack as the mechanism; the trampoline needs no fields and reads nothing on trust |
 | `Std`'s state, failure, stream and given as generic effects found by their class — `get()`, `state(0)`, `option(String.class)` | templates, and effects said of them (section 2): found by class alone, a handler of one type answered another's |
 | a clause as one record for its four kinds (`answer`, `on`, `keep`, `leave`), with fields left empty and a flag | a sealed type of four records, each with what it needs: `leave` has no operation and no answer's type. An operation answered in place costs the same; one whose clause takes the rest, the same to 2 ns more |
@@ -164,9 +164,9 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 
 | | ns |
 |---|---|
-| `answer`, the handler the innermost of seven | 6.7 |
+| `answer`, the handler the innermost of seven | 6.0 |
 | `answer`, the handler the outermost of seven | 13.7 |
-| an answer and two `map` | 22.2 |
+| an answer and two `map` | 17 to 22 |
 | a counter (a state that moves on at every operation), alone | 9.4 |
 | the counter the innermost of seven | 9.4 |
 | the counter the outermost of three | 11.7 |
@@ -204,6 +204,19 @@ An answer cost 10.1 ns and costs 6.9 (the innermost of seven), 15.2 and 12.3 (th
 takes nothing off and puts nothing back — it sets the state and gives the answer. This is the general case of
 which `answer(op, value)` is one; no word of its own was needed (one was tried: `answer(op, s -> x, s -> next)`).
 A counter cost 18.9 ns and costs 9.0; outermost of seven, 33 and 16.4.
+
+**What a typed move costs, measured.** The loop over `Object` variables answered in place in 5.0 ns; the
+trampoline first did in 6.5, with the same 64 bytes made an operation (`-prof gc`), so the difference is code
+and not objects. A third of it was the way back to the loop after every answer: the next program written to
+the `Run`, a field of an object and so a store with the collector's barrier, and a call through `At`. An
+answer in place now goes on within its move, up to `STEPS` times, as a value already did through steps: 6.0.
+Of the nanosecond left, 0.3 is the operation kept for `Fx.Where`; the rest is not found — the `of()` asked of
+every operation and the `switch` over sealed types are what is new in that path.
+
+**An answer and two `map` gives 17 or 22 ns**, from one fork of the JVM to the next and at times within one,
+under G1 and under the parallel collector alike; the kernel before the trampoline gave the same two numbers.
+It makes 224 bytes an operation, ten gigabytes a second: it is the speed of making objects that is measured
+there, and it is not the kernel's to settle.
 
 ## 6. What is not here
 

@@ -67,6 +67,8 @@ the Java stack, and its depth is in `rest`. Three things keep a move from costin
 
 - A `Run` moves on in place where only its program changes — an operation answered in place, `defer`. The
   steps, the parts and `A` are the same, so it is typed as it stands.
+- An operation answered in place goes on within the same move, up to `STEPS` times: the program its answer
+  gives is run at once, with no way back to the loop between.
 - A value passes up to `STEPS` (four) steps within one move, and a move goes up to four nodes down into a
   program, before it gives the next its turn. The number is a constant: the stack a move takes is bounded.
 
