@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 419 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 408 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 
@@ -72,7 +72,6 @@ be read and owned. `Std.java` is a second, with the usual effects.
 | `on(op, (state, k) -> ..)` | a clause: `k.apply(answer, nextState)` goes on with the rest — once, twice, or never |
 | `answer(op, value)` | the usual clause: answered where it is asked |
 | `leave(value)` | a clause for any operation of the effect: the part is left, with the value |
-| `pass()` | not this handler's own: the next handler of the effect, outside, is asked |
 | `handling(Effect.class, op -> switch (op) { .. })` | a handler with no state that gives what its part gives |
 | `ensuring(part, after)` | `after` runs when the part ends: with a value, left by a clause, or by an exception |
 | `Fx.<R, B>row().handler(outer).handler(inner).handle(part)` | handlers around a part of a program, the outermost first; `B` is what the whole gives, the row `R` is left |
@@ -90,7 +89,7 @@ a value, never replayed). Its state is a value too: a rest gone on with twice ha
 
 ## The usual effects
 
-[`Std.java`](src/main/java/okay/tiny/Std.java), 276 lines beside the kernel and written only with what it gives:
+[`Std.java`](src/main/java/okay/tiny/Std.java), 259 lines beside the kernel and written only with what it gives:
 each effect with the handler that is its monad.
 
 A state, a failure, something told and something given are **prototypes**: generic operations and what handles
@@ -99,7 +98,7 @@ that effect:
 
 ```java
 sealed interface Count {
-  record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+  record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
   State.In<Integer, Count> state = State.in(Ask::new);
 }
 ```
@@ -114,10 +113,10 @@ run(Fx.<Final<Integer, String>>top().handler(Count.state.from(0)).handle(counted
 
 | Prototype | An effect made of it asks | Its handlers | The part gives |
 |---|---|---|---|
-| `State<S, X>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>`: the last state and the value |
-| `Fail<E, X>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`; `Result<E, A>` |
-| `Emit<T, X>` | `.tell(item)` | `.told()` | `Told<T, A>`: what was told and the value |
-| `Env<E, X>` | `.ask()` | `.given(value)` | `A` |
+| `State<S>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>`: the last state and the value |
+| `Fail<E>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`; `Result<E, A>` |
+| `Emit<T>` | `.tell(item)` | `.told()` | `Told<T, A>`: what was told and the value |
+| `Env<E>` | `.ask()` | `.given(value)` | `A` |
 
 `Count` is an effect like one written by hand: javac wants its handler, two states of two types are two types
 in a row, and a handler of one never sees an operation of the other. Two effects have no type argument and are

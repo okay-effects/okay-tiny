@@ -34,58 +34,51 @@ public final class Std {
   // for the row — and one record that holds the prototype's operations:
   //
   //   sealed interface Count {
-  //     record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+  //     record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
   //     State.In<Integer, Count> state = State.in(Ask::new);
   //   }
   //
   // and it is asked and handled through that: Count.state.get(), Count.state.put(1), Count.state.from(0). Count is
   // an effect like any written by hand: javac wants its handler, two states of two types are two types in a row,
   // and a handler of one never sees an operation of the other.
+  //
+  // The record's answer is an Object: which operation it holds, and so what it is answered with, is known where
+  // it is asked and where it is handled — both here, in In — and said there by one cast.
 
-  /** What the one record of an effect made of a prototype implements: it holds an operation P, whose answer is X. */
-  public interface Of<P, X, F> extends Op<X, F> { P op(); }
+  /** What the one record of an effect made of a prototype implements: it holds one of the prototype's operations. */
+  public interface Of<P, F> extends Op<Object, F> { P op(); }
 
   /** The class of an effect's one record: all its operations are of it, so its handler is found by it. */
   @SuppressWarnings("unchecked")
   private static <F> Class<F> effect(Op<?, F> anOperation) { return (Class<F>) anOperation.getClass(); }
 
+  /** What an operation was answered with, as the type that operation is answered with by its handler here. */
+  @SuppressWarnings("unchecked")
+  private static <A, R> Comp<A, R> answered(Comp<Object, R> asked) { return (Comp<A, R>) (Comp<?, R>) asked; }
+
   // ---- a state: read and written. Its handler is the state monad ---------------------------------------------------
 
-  /** An operation of a state of S, whose answer is X. */
-  public sealed interface State<S, X> {
-    /** What a state does with this operation: here its answer's type is known, which a switch would not tell. */
-    <F, B, R> Case<F, S, B, R> clause(Op<X, F> asked);
+  public sealed interface State<S> {
+    record Get<S>() implements State<S> {}
+    record Put<S>(S state) implements State<S> {}
 
-    record Get<S>() implements State<S, S> {
-      @Override public <F, B, R> Case<F, S, B, R> clause(Op<S, F> asked) { return on(asked, (s, k) -> k.apply(s, s)); }
-    }
+    interface Of<S, F> extends Std.Of<State<S>, F> {}
 
-    record Put<S>(S state) implements State<S, Void> {
-      @Override public <F, B, R> Case<F, S, B, R> clause(Op<Void, F> asked) {
-        return on(asked, (s, k) -> k.apply(null, state));
-      }
-    }
+    /** A state of S as the effect F: `made` is F's record's constructor, `Ask::new`. */
+    static <S, F> In<S, F> in(Function<State<S>, Of<S, F>> made) { return new In<>(made); }
 
-    interface Of<S, X, F> extends Std.Of<State<S, X>, X, F> {}
-
-    /** How an effect F is made of a state of S: its record's constructor, `Ask::new`, for every answer X. */
-    interface Made<S, F> { <X> Of<S, X, F> of(State<S, X> op); }
-
-    static <S, F> In<S, F> in(Made<S, F> made) { return new In<>(made); }
-
-    /** A state of S as the effect F. */
     final class In<S, F> {
-      private final Made<S, F> made;
+      private final Function<State<S>, Of<S, F>> made;
       private final Class<F> effect;
 
-      private In(Made<S, F> made) {
+      private In(Function<State<S>, Of<S, F>> made) {
         this.made = made;
-        this.effect = effect(made.of(new Get<S>()));
+        this.effect = effect(made.apply(new Get<>()));
       }
 
-      public <R extends F> Comp<S, R> get() { return perform(made.of(new Get<>())); }
+      public <R extends F> Comp<S, R> get() { return answered(perform(made.apply(new Get<>()))); }
 
-      public <R extends F> Comp<Void, R> put(S state) { return perform(made.of(new Put<>(state))); }
+      public <R extends F> Comp<Void, R> put(S state) { return answered(perform(made.apply(new Put<>(state)))); }
 
       public <R extends F> Comp<Void, R> update(Function<S, S> f) {
         return this.<R>get().flatMap(s -> put(f.apply(s)));
@@ -93,14 +86,18 @@ public final class Std {
 
       /** Its handler: the part is run from this state, and gives its value with the state it ended in. */
       public <A, R> Handler<F, A, Final<S, A>, R> from(S initial) {
-        return folding(effect, initial, Final::new, op -> clause(held(op)));
+        return folding(effect, initial, Final::new, op -> {
+          Of<S, F> asked = held(op);
+          return switch (asked.op()) {
+            case Get<S> get -> on(asked, (s, k) -> k.apply(s, s));
+            case Put<S> put -> on(asked, (s, k) -> k.apply(null, put.state()));
+          };
+        });
       }
 
-      /** An operation of F is its record, which holds a state's: the handler was found by that record's class. */
+      /** An operation of F is its record: the handler was found by that record's class. */
       @SuppressWarnings("unchecked")
-      private Of<S, ?, F> held(F op) { return (Of<S, ?, F>) op; }
-
-      private static <S, X, F, B, R> Case<F, S, B, R> clause(Of<S, X, F> asked) { return asked.op().clause(asked); }
+      private Of<S, F> held(F op) { return (Of<S, F>) op; }
     }
   }
 
@@ -109,32 +106,23 @@ public final class Std {
 
   // ---- a failure: the part does not go on. Its handlers are the option and the either monads -----------------------
 
-  /** An operation of a failure of E. */
-  public sealed interface Fail<E, X> {
-    E error();
-
-    record Raise<E>(E error) implements Fail<E, Void> {}
-
-    interface Of<E, X, F> extends Std.Of<Fail<E, X>, X, F> {}
-
-    interface Made<E, F> { <X> Of<E, X, F> of(Fail<E, X> op); }
-
-    static <E, F> In<E, F> in(Made<E, F> made) { return new In<>(made); }
+  public record Fail<E>(E error) {
+    public interface Of<E, F> extends Std.Of<Fail<E>, F> {}
 
     /** A failure of E as the effect F. */
-    final class In<E, F> {
-      private final Made<E, F> made;
+    public static <E, F> In<E, F> in(Function<Fail<E>, Of<E, F>> made) { return new In<>(made); }
+
+    public static final class In<E, F> {
+      private final Function<Fail<E>, Of<E, F>> made;
       private final Class<F> effect;
 
-      private In(Made<E, F> made) {
+      private In(Function<Fail<E>, Of<E, F>> made) {
         this.made = made;
-        this.effect = effect(made.of(new Raise<E>(null)));
+        this.effect = effect(made.apply(new Fail<>(null)));
       }
 
       /** Of any type: its answer never comes. */
-      public <T, R extends F> Comp<T, R> with(E error) {
-        return Fx.<Void, F, R>perform(made.of(new Raise<>(error))).map(never -> null);
-      }
+      public <T, R extends F> Comp<T, R> with(E error) { return answered(perform(made.apply(new Fail<>(error)))); }
 
       public <A, R> Handler<F, A, Optional<A>, R> option() {
         return folding(effect, null, (s, a) -> Optional.of(a), op -> leave(Optional.empty()));
@@ -146,7 +134,7 @@ public final class Std {
       }
 
       @SuppressWarnings("unchecked")
-      private Of<E, ?, F> held(F op) { return (Of<E, ?, F>) op; }
+      private Of<E, F> held(F op) { return (Of<E, F>) op; }
     }
   }
 
@@ -157,41 +145,33 @@ public final class Std {
 
   // ---- something told on the way. Its handler is the writer monad --------------------------------------------------
 
-  /** An operation of a stream of T. */
-  public sealed interface Emit<T, X> {
-    T item();
-
-    record Tell<T>(T item) implements Emit<T, Void> {}
-
-    interface Of<T, X, F> extends Std.Of<Emit<T, X>, X, F> {}
-
-    interface Made<T, F> { <X> Of<T, X, F> of(Emit<T, X> op); }
-
-    static <T, F> In<T, F> in(Made<T, F> made) { return new In<>(made); }
+  public record Emit<T>(T item) {
+    public interface Of<T, F> extends Std.Of<Emit<T>, F> {}
 
     /** A stream of T as the effect F. */
-    final class In<T, F> {
-      private final Made<T, F> made;
+    public static <T, F> In<T, F> in(Function<Emit<T>, Of<T, F>> made) { return new In<>(made); }
+
+    public static final class In<T, F> {
+      private final Function<Emit<T>, Of<T, F>> made;
       private final Class<F> effect;
 
-      private In(Made<T, F> made) {
+      private In(Function<Emit<T>, Of<T, F>> made) {
         this.made = made;
-        this.effect = effect(made.of(new Tell<T>(null)));
+        this.effect = effect(made.apply(new Emit<>(null)));
       }
 
-      public <R extends F> Comp<Void, R> tell(T item) { return perform(made.of(new Tell<>(item))); }
+      public <R extends F> Comp<Void, R> tell(T item) { return answered(perform(made.apply(new Emit<>(item)))); }
 
       /** Its handler: the part's value, with what it told. */
       public <A, R> Handler<F, A, Told<T, A>, R> told() {
-        return folding(effect, List.<T>of(), Told::new, op -> telling(held(op)));
+        return folding(effect, List.<T>of(), Told::new, op -> {
+          Of<T, F> asked = held(op);
+          return on(asked, (items, k) -> k.apply(null, plus(items, asked.op().item())));
+        });
       }
 
       @SuppressWarnings("unchecked")
-      private Of<T, ?, F> held(F op) { return (Of<T, ?, F>) op; }
-
-      private static <T, X, F, B, R> Case<F, List<T>, B, R> telling(Of<T, X, F> asked) {
-        return on(asked, (items, k) -> k.apply(null, plus(items, asked.op().item())));
-      }
+      private Of<T, F> held(F op) { return (Of<T, F>) op; }
     }
   }
 
@@ -200,44 +180,30 @@ public final class Std {
 
   // ---- something given from outside. Its handler is the reader monad -----------------------------------------------
 
-  /** An operation of something given, an E, whose answer is X. */
-  public sealed interface Env<E, X> {
-    /** Answered with what is given: here the answer's type is known to be E. */
-    <F, S, B, R> Case<F, S, B, R> given(Op<X, F> asked, E value);
-
-    record Ask<E>() implements Env<E, E> {
-      @Override public <F, S, B, R> Case<F, S, B, R> given(Op<E, F> asked, E value) { return answer(asked, value); }
-    }
-
-    interface Of<E, X, F> extends Std.Of<Env<E, X>, X, F> {}
-
-    interface Made<E, F> { <X> Of<E, X, F> of(Env<E, X> op); }
-
-    static <E, F> In<E, F> in(Made<E, F> made) { return new In<>(made); }
+  public record Env<E>() {
+    public interface Of<E, F> extends Std.Of<Env<E>, F> {}
 
     /** Something given, an E, as the effect F. */
-    final class In<E, F> {
-      private final Made<E, F> made;
+    public static <E, F> In<E, F> in(Function<Env<E>, Of<E, F>> made) { return new In<>(made); }
+
+    public static final class In<E, F> {
+      private final Function<Env<E>, Of<E, F>> made;
       private final Class<F> effect;
 
-      private In(Made<E, F> made) {
+      private In(Function<Env<E>, Of<E, F>> made) {
         this.made = made;
-        this.effect = effect(made.of(new Ask<E>()));
+        this.effect = effect(made.apply(new Env<>()));
       }
 
-      public <R extends F> Comp<E, R> ask() { return perform(made.of(new Ask<>())); }
+      public <R extends F> Comp<E, R> ask() { return answered(perform(made.apply(new Env<>()))); }
 
       /** Its handler: every ask is answered with this. */
       public <A, R> Handler<F, A, A, R> given(E value) {
-        return handling(effect, op -> answering(held(op), value));
+        return handling(effect, op -> answer(held(op), value));
       }
 
       @SuppressWarnings("unchecked")
-      private Of<E, ?, F> held(F op) { return (Of<E, ?, F>) op; }
-
-      private static <E, X, F, B, R> Case<F, Void, B, R> answering(Of<E, X, F> asked, E value) {
-        return asked.op().given(asked, value);
-      }
+      private Of<E, F> held(F op) { return (Of<E, F>) op; }
     }
   }
 

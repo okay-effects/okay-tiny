@@ -38,7 +38,6 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 | `on(op, (state, k) -> ..)` | the clause for the operation matched; `k.apply(answer, nextState)` goes on with the rest |
 | `answer(op, value)` | `on(op, (s, k) -> k.apply(value, s))`, answered where it is asked |
 | `leave(value)` | a clause for any operation of the effect: the part is left, the handler gives `value` |
-| `pass()` | not this handler's own: the operation goes on to the next handler of the effect outside this one, as if this one were not there |
 | `keep(op, (state, k) -> ..)` | `on` for a clause that keeps `k` to go on with it after the clause has ended, in a run of its own: the rest is not closed when the clause ends |
 
 A clause may: apply `k` once (answer); not apply it (the part is left with the clause's own value, and `ret` is
@@ -68,10 +67,10 @@ handler there with `row()`.
 
 | Effect | Operations | Functions | Handlers |
 |---|---|---|---|
-| `State<S, X>` | `Get`, `Put` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)`: `Handler<F, A, Final<S, A>, R>` |
-| `Fail<E, X>` | `Raise` | `.with(error)`, of any type | `.option()`: `Optional<A>`; `.result()`: `Result<E, A>` |
-| `Emit<T, X>` | `Tell` | `.tell(item)` | `.told()`: `Told<T, A>` |
-| `Env<E, X>` | `Ask` | `.ask()` | `.given(value)`: `A` |
+| `State<S>` | `Get`, `Put` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)`: `Handler<F, A, Final<S, A>, R>` |
+| `Fail<E>` | itself: `Fail(error)` | `.with(error)`, of any type | `.option()`: `Optional<A>`; `.result()`: `Result<E, A>` |
+| `Emit<T>` | itself: `Emit(item)` | `.tell(item)` | `.told()`: `Told<T, A>` |
+| `Env<E>` | itself: `Env()` | `.ask()` | `.given(value)`: `A` |
 | `Choice` | `Of<X>` | `choose(options)` | `all()`: `List<A>` |
 | `Async` | `Await<X>` | `await(start)`, `awaitAll(starts)` | `blocking()`: `A`; `start(program)`, `start(program, see)`: runs a `Comp<A, Async>`, gives a `CompletableFuture<A>` |
 
@@ -93,9 +92,9 @@ of one, reached through it — `Count.state.get()`, `Count.state.from(0)`.
 | Making an effect of a prototype `P` | |
 |---|---|
 | `sealed interface Count { .. }` | the effect: a type of its own, for the row |
-| `record Ask<X>(P<T, X> op) implements Count, P.Of<T, X, Count> {}` | its one operation: it holds one of the prototype's, whose answer is `X` |
+| `record Ask(P<T> op) implements Count, P.Of<T, Count> {}` | its one operation: it holds one of the prototype's |
 | `P.In<T, Count> name = P.in(Ask::new);` | the prototype as that effect: what is asked of it, and its handlers |
-| `Std.Of<P, X, F>` | what such a record implements: `op()` is the prototype's operation — an observer reads it there |
+| `Std.Of<P, F>` | what such a record implements: `op()` is the prototype's operation — an observer reads it there |
 
 ## What javac refuses
 

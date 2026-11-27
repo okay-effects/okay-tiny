@@ -54,7 +54,6 @@ Optional<Order> o = run(Fx.<Optional<Order>>top().handler(stock(left)).handler(t
 | only to answer | `handling(E.class, op -> switch (op) { case X x -> answer(x, value); })` |
 | a state | `folding(E.class, s0, (s, a) -> a, op -> switch (op) { case X x -> on(x, (s, k) -> k.apply(answer, next)); })` |
 | its own result | the second argument, `ret`: `(s, a) -> b` — the handler is `Handler<E, A, B, R>` |
-| to answer only some operations | `case X x -> mine(x) ? on(x, ..) : pass()`: the next handler of the effect outside is asked |
 | to leave the part | a clause that does not apply `k`: `on(x, (s, k) -> pure(value))`; for any operation, `leave(value)` |
 | to go on more than once | `k.apply(a, s).flatMap(first -> k.apply(b, s).map(second -> ..))`: `k` is a value, never replayed |
 | to ask another effect | the clause is a program of the row that stays: `<R extends Clock> Handler<Mail, B, B, R>` |
@@ -66,13 +65,13 @@ its own, each a type:
 
 ```java
 sealed interface Count {
-  record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+  record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
   State.In<Integer, Count> state = State.in(Ask::new);
 }
 ```
 
-`State<S, X>` (`Count.state.get()`, `.put(s)`, `.update(f)`; handler `.from(initial)`), `Fail<E, X>` (`.with(error)`;
-`.option()`, `.result()`), `Emit<T, X>` (`.tell(item)`; `.told()`), `Env<E, X>` (`.ask()`; `.given(value)`). And two
+`State<S>` (`Count.state.get()`, `.put(s)`, `.update(f)`; handler `.from(initial)`), `Fail<E>` (`.with(error)`;
+`.option()`, `.result()`), `Emit<T>` (`.tell(item)`; `.told()`), `Env<E>` (`.ask()`; `.given(value)`). And two
 effects used as they are: `Choice`
 (`choose(options)`; `all()`), `Async` (`await(() -> stage)`, `awaitAll(starts)`; `blocking()` — the thread waits; or
 `start(program)` for a `Comp<A, Async>` — no thread waits, a `CompletableFuture<A>`).

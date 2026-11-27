@@ -421,7 +421,7 @@ what handles them. An application makes effects of its own of them, each a type:
 
 ```java
 sealed interface Count {
-  record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+  record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
   State.In<Integer, Count> state = State.in(Ask::new);
 }
 ```
@@ -441,10 +441,10 @@ run(Fx.<Final<Integer, String>>top().handler(Count.state.from(0)).handle(counted
 
 | Prototype | An effect made of it asks | Its handlers | The part gives |
 |---|---|---|---|
-| `State<S, X>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>` |
-| `Fail<E, X>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`, `Result<E, A>` |
-| `Emit<T, X>` | `.tell(item)` | `.told()` | `Told<T, A>` |
-| `Env<E, X>` | `.ask()` | `.given(value)` | `A` |
+| `State<S>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>` |
+| `Fail<E>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`, `Result<E, A>` |
+| `Emit<T>` | `.tell(item)` | `.told()` | `Told<T, A>` |
+| `Env<E>` | `.ask()` | `.given(value)` | `A` |
 
 `Count` is an effect like one written by hand. javac wants its handler; two states of two types are two types
 in one row, `<R extends Count & Note>` (`StdTest.twoStatesOfOneType`); nothing is said at the start of a chain,
@@ -453,10 +453,10 @@ method around a part it knows nothing of does not answer that part's own
 (`StdTest.aStatePutAroundAPartDoesNotAnswerThePartsOwn`). An observer sees the record; what it holds is
 `op()`, of `Std.Of`.
 
-A prototype of your own is written the same way: a sealed generic family of operations, `P<T, X>` with `X` the
-answer; `P.Of`, `P.Made` and `P.In` as `State`'s are. Where a handler needs the type of an answer, the
-operation gives its clause itself, by a method — there the type is known, and a `switch` would not tell it
-(`State.clause`, `Env.given`).
+A prototype of your own is written the same way: its operations, generic; `Of`, what an effect's record
+implements; and `In`, which makes those operations into the effect's and has its handlers. The record's answer
+is an `Object`: which operation it holds, and so what it is answered with, is known where it is asked and where
+it is handled — both in `In` — and said there by a cast. Outside `In` everything has its type.
 
 Two effects have no type argument and are used as they are:
 

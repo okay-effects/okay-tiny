@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 419 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 408 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -60,14 +60,17 @@ what the machine is at, `At<Z>`, over `Run<A, Y, Z>`, `Give<A, Y, Z>` and `Done<
   argument — of the state, or a name beside it — can tell two of them apart in a row, for the same refusal
   meets any generic supertype they share. So what tells them apart is a type of its own for each: an effect is
   *made of* a prototype, by its type, one record that holds the prototype's operations, and the prototype as
-  that effect (`State.in(Ask::new)`). The record's constructor is how javac ties the effect to the state's
-  type — it is passed as a method that is generic in the answer — and the record's class is what the machine
-  finds the handler by. Then two states of two types are two types in a row, javac wants a handler of each,
-  and a handler of one never sees an operation of the other. Tried first, and taken back: a `Key<T>` that the
-  operations and their handler shared — a value passed at every use, and checked when the program runs.
-- **A handler may pass.** `pass()` is a clause: not this handler's own, ask the next handler of the effect
-  outside. It is the family's `mine` — the TCK asks for it — and is for an effect whose handlers answer by
-  something in the operation. `Std` does not need it.
+  that effect (`State.in(Ask::new)`). The record's class is what the machine finds the handler by, and its
+  constructor what ties the effect to the state's type for javac. Then two states of two types are two types
+  in a row, javac wants a handler of each, and a handler of one never sees an operation of the other.
+  The record's answer is an `Object`, and the prototype says its type by a cast, in the one place where an
+  operation is both made and handled: with the answer in the record's type — `Ask<X>(State<Integer, X>)`,
+  a constructor passed as a method generic in `X`, each operation giving its own clause — nothing was cast, and
+  the three lines an effect takes were too much to read.
+  Tried and taken back before that: a `Key<T>` that the operations and their handler shared — a value passed
+  at every use, checked when the program runs; and with it `pass()`, a clause by which a handler let an
+  operation go on to the next handler outside. Nothing needs it now: the family's TCK, whose handlers answer
+  only their own identity, says it with a clause that asks the operation again outside.
 - **One effect of a class in a row.** `<R extends State<Integer> & State<String>>` is refused by javac, which is
   as well: a handler is found by the effect's class.
 - **Completeness is javac's.** A handler is `op -> switch (op) { .. }` over a sealed interface, and a `switch`
@@ -157,13 +160,13 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 
 | | ns |
 |---|---|
-| `answer`, the handler the innermost of seven | 7.5 |
-| `answer`, the handler the outermost of seven | 14.2 |
-| an answer and two `map` | 22.6 |
-| a counter (a state that moves on at every operation), alone | 10.1 |
-| the counter the innermost of seven | 10.5 |
-| the counter the outermost of three | 12.0 |
-| the counter the outermost of seven | 18.4 |
+| `answer`, the handler the innermost of seven | 6.7 |
+| `answer`, the handler the outermost of seven | 13.7 |
+| an answer and two `map` | 22.2 |
+| a counter (a state that moves on at every operation), alone | 9.4 |
+| the counter the innermost of seven | 9.4 |
+| the counter the outermost of three | 11.7 |
+| the counter the outermost of seven | 17.0 |
 
 A free monad makes five or six small objects for an operation; that is the floor. Next to a query to a database
 it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark
@@ -197,9 +200,6 @@ An answer cost 10.1 ns and costs 6.9 (the innermost of seven), 15.2 and 12.3 (th
 takes nothing off and puts nothing back — it sets the state and gives the answer. This is the general case of
 which `answer(op, value)` is one; no word of its own was needed (one was tried: `answer(op, s -> x, s -> next)`).
 A counter cost 18.9 ns and costs 9.0; outermost of seven, 33 and 16.4.
-
-**That a handler may pass costs every operation about 0.6 ns**: the search for a handler goes on where the one
-found says the operation is not its own, so it is no longer the last thing done.
 
 ## 6. What is not here
 

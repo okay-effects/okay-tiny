@@ -18,17 +18,17 @@ import org.junit.jupiter.api.Test;
 /** What the kernel does, a scenario each: the programs and the handlers are Shop's. */
 class ScenariosTest {
   sealed interface Level {
-    record Ask<X>(Std.State<Integer, X> op) implements Level, Std.State.Of<Integer, X, Level> {}
+    record Ask(Std.State<Integer> op) implements Level, Std.State.Of<Integer, Level> {}
     Std.State.In<Integer, Level> state = Std.State.in(Ask::new);
   }
 
   sealed interface Given {
-    record Ask<X>(Std.Env<Integer, X> op) implements Given, Std.Env.Of<Integer, X, Given> {}
+    record Ask(Std.Env<Integer> op) implements Given, Std.Env.Of<Integer, Given> {}
     Std.Env.In<Integer, Given> env = Std.Env.in(Ask::new);
   }
 
   sealed interface Said {
-    record Ask<X>(Std.Emit<String, X> op) implements Said, Std.Emit.Of<String, X, Said> {}
+    record Ask(Std.Emit<String> op) implements Said, Std.Emit.Of<String, Said> {}
     Std.Emit.In<String, Said> emit = Std.Emit.in(Ask::new);
   }
 

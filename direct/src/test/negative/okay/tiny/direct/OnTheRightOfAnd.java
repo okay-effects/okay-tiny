@@ -9,11 +9,11 @@ import java.util.List;
 
 class OnTheRightOfAnd {
   sealed interface Count {
-    record Ask<X>(State<Boolean, X> op) implements Count, State.Of<Boolean, X, Count> {}
+    record Ask(State<Boolean> op) implements Count, State.Of<Boolean, Count> {}
     State.In<Boolean, Count> state = State.in(Ask::new);
   }
   sealed interface Log {
-    record Ask<X>(Emit<String, X> op) implements Log, Emit.Of<String, X, Log> {}
+    record Ask(Emit<String> op) implements Log, Emit.Of<String, Log> {}
     Emit.In<String, Log> emit = Emit.in(Ask::new);
   }
 

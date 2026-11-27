@@ -13,37 +13,37 @@ class StdTest {
   // The effects of this test, each made of one of Std's prototypes: a type, its record, and the prototype as it.
 
   sealed interface Count {
-    record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+    record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
     State.In<Integer, Count> state = State.in(Ask::new);
   }
 
   sealed interface Other {
-    record Ask<X>(State<Integer, X> op) implements Other, State.Of<Integer, X, Other> {}
+    record Ask(State<Integer> op) implements Other, State.Of<Integer, Other> {}
     State.In<Integer, Other> state = State.in(Ask::new);
   }
 
   sealed interface Steps {
-    record Ask<X>(State<Long, X> op) implements Steps, State.Of<Long, X, Steps> {}
+    record Ask(State<Long> op) implements Steps, State.Of<Long, Steps> {}
     State.In<Long, Steps> state = State.in(Ask::new);
   }
 
   sealed interface Note {
-    record Ask<X>(State<String, X> op) implements Note, State.Of<String, X, Note> {}
+    record Ask(State<String> op) implements Note, State.Of<String, Note> {}
     State.In<String, Note> state = State.in(Ask::new);
   }
 
   sealed interface Odd {
-    record Ask<X>(Fail<String, X> op) implements Odd, Fail.Of<String, X, Odd> {}
+    record Ask(Fail<String> op) implements Odd, Fail.Of<String, Odd> {}
     Fail.In<String, Odd> fail = Fail.in(Ask::new);
   }
 
   sealed interface Log {
-    record Ask<X>(Emit<String, X> op) implements Log, Emit.Of<String, X, Log> {}
+    record Ask(Emit<String> op) implements Log, Emit.Of<String, Log> {}
     Emit.In<String, Log> emit = Emit.in(Ask::new);
   }
 
   sealed interface Given {
-    record Ask<X>(Env<Integer, X> op) implements Given, Env.Of<Integer, X, Given> {}
+    record Ask(Env<Integer> op) implements Given, Env.Of<Integer, Given> {}
     Env.In<Integer, Given> env = Env.in(Ask::new);
   }
 

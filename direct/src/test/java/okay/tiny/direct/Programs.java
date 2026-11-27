@@ -12,17 +12,17 @@ final class Programs {
   private Programs() {}
 
   sealed interface Count {
-    record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+    record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
     State.In<Integer, Count> state = State.in(Ask::new);
   }
 
   sealed interface Steps {
-    record Ask<X>(State<Long, X> op) implements Steps, State.Of<Long, X, Steps> {}
+    record Ask(State<Long> op) implements Steps, State.Of<Long, Steps> {}
     State.In<Long, Steps> state = State.in(Ask::new);
   }
 
   sealed interface Log {
-    record Ask<X>(Emit<String, X> op) implements Log, Emit.Of<String, X, Log> {}
+    record Ask(Emit<String> op) implements Log, Emit.Of<String, Log> {}
     Emit.In<String, Log> emit = Emit.in(Ask::new);
   }
 
