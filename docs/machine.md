@@ -43,6 +43,8 @@ The loop looks at `now`:
 
 - **`Pure`** — there is a value. Take the next step from `rest`.
 - **`FlatMap`, `Mapped`** — put the function on `rest`, go into `first`.
+- **`Asking`** — `perform(op).flatMap(next)`, as one node: as `Perform`, and where the operation is answered in
+  place its answer is given to `next` at once, with no step put.
 - **`Ensure`** — put a mark on `rest` that holds `after`, go into the part.
 - **`Part`** — put a record on `around` (the handler, and the current `rest` as the steps after the part), start
   the part with an empty `rest` and the handler's initial state.

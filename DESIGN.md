@@ -1,12 +1,12 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 288 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 305 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
 ## 1. The decisions
 
-1. **A program is a free monad.** `Comp<A, R>` is data: `Pure`, `Perform(op)`, `FlatMap`, `Mapped`, `Part`
+1. **A program is a free monad.** `Comp<A, R>` is data: `Pure`, `Perform(op)`, `Asking(op, next)`, `FlatMap`, `Mapped`, `Part`
    (a handler around a part), `Resume` (a rest gone on with). No threads, no bytecode transformation: direct style
    is given up for that, programs are written with `flatMap` and `map`.
 2. **A handler is a fold of the part it is around** — a combination of fold and `flatMap`. It always has a state,
@@ -124,8 +124,8 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 
 | | ns |
 |---|---|
-| `answer`, the handler the innermost of seven | 9.4 |
-| `answer`, the handler the outermost of seven | 15.1 |
+| `answer`, the handler the innermost of seven | 6.9 |
+| `answer`, the handler the outermost of seven | 12.3 |
 | an answer and two `map` | 20.4 |
 | a counter (a state that moves on at every operation), alone | 17.6 |
 | the counter the innermost of seven | 19.1 |
@@ -153,6 +153,11 @@ copied it, and parts one in another cost the square of their depth: 10^5 levels,
 **How far these numbers hold.** They are of a machine with nothing else running. With another process busy, a
 state outermost of seven gave 33 to 41 ns from one run to the next, for this kernel and for the one before it
 alike: two kernels are compared by runs taken in turn, several of each, and by their least.
+
+**An operation and what follows it are one node.** `perform(op).flatMap(next)` is `Asking(op, next)` — the node a
+free monad is named for — not a `FlatMap` of a `Perform`. Where the operation is answered in place the machine
+gives the answer to `next` at once: no step is put on the stack and taken off it, and one object less is made.
+An answer cost 10.1 ns and costs 6.9 (the innermost of seven), 15.2 and 12.3 (the outermost).
 
 ## 6. What is not here
 

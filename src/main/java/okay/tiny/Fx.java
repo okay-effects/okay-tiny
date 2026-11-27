@@ -30,7 +30,17 @@ public final class Fx {
 
   record Pure<A, R>(A value) implements Comp<A, R> {}
   record Mapped<X, A, R>(Comp<X, R> first, Function<? super X, ? extends A> f) implements Comp<A, R> {}
-  record Perform<A, R>(Op<A, ? super R> op) implements Comp<A, R> {}
+  /** An operation asked, and nothing after it. With flatMap it is the node below: one, not two. */
+  record Perform<A, R>(Op<A, ? super R> op) implements Comp<A, R>, Asks {
+    @Override public <B, Q extends R> Comp<B, Q> flatMap(Function<? super A, ? extends Comp<B, Q>> next) {
+      return new Asking<>(op, next);
+    }
+  }
+  /** An operation asked, and the program of its answer: the node a free monad is named for. */
+  record Asking<X, A, R>(Op<X, ? super R> op, Function<? super X, ? extends Comp<A, R>> next)
+      implements Comp<A, R>, Asks {}
+  /** The two nodes that ask. */
+  private sealed interface Asks { Op<?, ?> op(); }
   record FlatMap<X, A, R>(Comp<X, R> first, Function<? super X, ? extends Comp<A, R>> next) implements Comp<A, R> {}
   /** The part gives A and asks V; the handler is of an effect V has, gives B, and asks what stays, R. */
   record Part<A, B, V, R>(Handler<? super V, A, B, ? super R> handler, Comp<A, ? super V> part)
@@ -295,15 +305,24 @@ public final class Fx {
             now = part.part();
             continue;
           }
-          case Perform<?, ?> p -> {
-            Op<?, ?> op = asked = p.op();
+          case Asks asks -> {
+            Op<?, ?> op = asked = asks.op();
             if (see != null) see.accept(op);
             Around own = around;
             while (own != null && !own.handler.effect.isInstance(op)) own = own.outer;
             if (own == null) throw new IllegalStateException("no handler for " + op);
             switch (own.handler.cases.apply(op)) {
-              case Answer<?, Object, Object, Object, Object> answered -> value = made(answered.op, op, answered.answer);
+              case Answer<?, Object, Object, Object, Object> answered -> {
+                value = made(answered.op, op, answered.answer);
+                if (asks instanceof Asking<?, ?, ?> then) {            // what follows it, with no step put and taken
+                  now = ((Function<Object, Comp<?, ?>>) (Function<?, ?>) then.next()).apply(value);
+                  continue turn;
+                }
+              }
               case Takes<Object, Object, Object, Object> takes -> {   // the rest, to the end of the handler's part
+                if (asks instanceof Asking<?, ?, ?> then) {
+                  rest = new Then((Function<Object, Comp<?, ?>>) (Function<?, ?>) then.next(), rest);
+                }
                 K<Object, Object, Object, Object> k = new K<>(rest, around, own, states, state);
                 taken = states;
                 Object its = own == around ? state : states[own.depth];
