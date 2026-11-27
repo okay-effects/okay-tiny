@@ -51,7 +51,8 @@ public final class Fx {
     @Override public <Y> Rest<X, Y> after(Rest<A, Y> rest) { return new Then<>(next, rest); }
     @Override public <Y, Z> At<Z> answered(Machine<Z> machine, X answer, Rest<A, Y> rest, Around<Y, Z> around,
                                            int more) {
-      return machine.on(next.apply(answer), rest, around, more);
+      Comp<A, ?> now = next.apply(answer);
+      return more > 0 ? machine.run(now, rest, around, more - 1) : new Run<>(now, rest, around);
     }
   }
   /**
@@ -106,38 +107,38 @@ public final class Fx {
    */
   public sealed interface Case<F, S, B, R> {}
 
-  // What a Case is: one of four, each with what it needs and no more. X is the answer's type, which Case hides.
+  // What a Case is: one of four, each with what it needs and no more.
+
+  /**
+   * The three made for an operation: X is the type of its answer, which Case hides. It is opened in one place,
+   * from the side of the operation asked: that is the very one the case was made for, so its answer is X.
+   */
+  private sealed interface For<X, F, S, B, R> extends Case<F, S, B, R> {
+    Op<X, F> op();
+
+    @SuppressWarnings("unchecked")
+    default <A> Asks<X, A> asked(Asks<?, A> asks) {
+      if (asks.op() == op()) return (Asks<X, A>) asks;
+      throw new IllegalStateException("a clause made for " + op() + ", asked was " + asks.op());
+    }
+  }
 
   /** answer(op, value): answered where it is asked. */
-  private record Answer<X, F, S, B, R>(Op<X, F> op, X answer) implements Case<F, S, B, R> {
-    /** Its answer, for the operation asked: that is the one it was made for, so the answer is of its type. */
-    @SuppressWarnings("unchecked")
-    private <Y> Y of(Op<Y, ?> asked) { return (Y) made(op, asked, answer); }
-  }
+  private record Answer<X, F, S, B, R>(Op<X, F> op, X answer) implements For<X, F, S, B, R> {}
 
-  /** The others take the rest of the part off, as k. */
-  private sealed interface Takes<F, S, B, R> extends Case<F, S, B, R> {}
+  /** The two with a clause, which is given the rest of the part, taken off, as k. */
+  private sealed interface With<X, F, S, B, R> extends For<X, F, S, B, R> {
+    Clause<X, S, B, R> clause();
+  }
 
   /** on(op, clause): when the clause ends, a rest it did not go on with was left, and is closed. */
-  private record On<X, F, S, B, R>(Op<X, F> op, Clause<X, S, B, R> clause) implements Takes<F, S, B, R> {
-    @SuppressWarnings("unchecked")
-    private <Y> Clause<Y, S, B, R> of(Op<Y, ?> asked) { return (Clause<Y, S, B, R>) made(op, asked, clause); }
-  }
+  private record On<X, F, S, B, R>(Op<X, F> op, Clause<X, S, B, R> clause) implements With<X, F, S, B, R> {}
 
   /** keep(op, clause): the rest is the clause's to go on with later; nothing is closed when the clause ends. */
-  private record Keep<X, F, S, B, R>(Op<X, F> op, Clause<X, S, B, R> clause) implements Takes<F, S, B, R> {
-    @SuppressWarnings("unchecked")
-    private <Y> Clause<Y, S, B, R> of(Op<Y, ?> asked) { return (Clause<Y, S, B, R>) made(op, asked, clause); }
-  }
+  private record Keep<X, F, S, B, R>(Op<X, F> op, Clause<X, S, B, R> clause) implements With<X, F, S, B, R> {}
 
   /** leave(value): of any operation of the effect, so with no answer's type; the rest is left. */
-  private record Leave<F, S, B, R>(B value) implements Takes<F, S, B, R> {}
-
-  /** What a case holds, for the operation asked: the case was made for that very one. */
-  private static <T> T made(Object made, Object asked, T held) {
-    if (made != asked) throw new IllegalStateException("a clause made for " + made + ", asked was " + asked);
-    return held;
-  }
+  private record Leave<F, S, B, R>(B value) implements Case<F, S, B, R> {}
 
   /** The clause for the operation matched: the type of its answer is the operation's own. */
   public static <X, F, S, B, R> Case<F, S, B, R> on(Op<X, F> op, Clause<X, S, B, R> clause) {
@@ -165,14 +166,36 @@ public final class Fx {
   public sealed interface Handler<F, A, B, R> {}
 
   /** What a Handler is, with the state's type S, which Handler hides. */
-  private record Fold<F, S, A, B, R>(Class<?> effect, Object of, S state, BiFunction<S, A, B> ret,
-                                     Function<F, Case<F, S, B, R>> cases) implements Handler<F, A, B, R> {
-    /** The operation as one of this handler's effect: it is of it, the machine has just found the handler by that. */
-    @SuppressWarnings("unchecked")
-    private F own(Op<?, ?> op) { return (F) op; }
+  private record Fold<F, S, A, B, R>(Cases<F, S, B, R> cases, S state, BiFunction<S, A, B> ret)
+      implements Handler<F, A, B, R> {}
 
-    /** What it is found by, said for a reader. */
-    private String name() { return of != null ? of.toString() : effect.getSimpleName(); }
+  /**
+   * A handler's clauses, and what its operations are found by: a class, or an object they say. O is what the
+   * clauses are given an operation as, which Cases hides.
+   */
+  private sealed interface Cases<F, S, B, R> {
+    /** The operation, which says it is of `of`, is this handler's. */
+    boolean has(Op<?, ?> op, Object of);
+
+    /** The clause for an operation that is. */
+    Case<F, S, B, R> of(Op<?, ?> op);
+  }
+
+  /** folding: the operations are the records of an effect's own interface, and say nothing: found by its class. */
+  private record OfClass<O, F, S, B, R>(Class<O> effect, Function<O, Case<F, S, B, R>> cases)
+      implements Cases<F, S, B, R> {
+    @Override public boolean has(Op<?, ?> op, Object of) { return of == null && effect.isInstance(op); }
+    @Override public Case<F, S, B, R> of(Op<?, ?> op) { return cases.apply(effect.cast(op)); }
+    @Override public String toString() { return effect.getSimpleName(); }
+  }
+
+  /** by: the operations are a template's, found by the object they say — the template made every one that says it. */
+  private record OfObject<O, F, S, B, R>(Object said, Function<O, Case<F, S, B, R>> cases)
+      implements Cases<F, S, B, R> {
+    @Override public boolean has(Op<?, ?> op, Object of) { return of == said; }
+    @SuppressWarnings("unchecked")
+    @Override public Case<F, S, B, R> of(Op<?, ?> op) { return cases.apply((O) op); }
+    @Override public String toString() { return said.toString(); }
   }
 
   /**
@@ -181,8 +204,8 @@ public final class Fx {
    */
   public static <F, S, A, B, R> Handler<F, A, B, R> folding(Class<F> effect, S state, BiFunction<S, A, B> ret,
                                                             Function<F, Case<F, S, B, R>> cases) {
-    return new Fold<>(Objects.requireNonNull(effect, "the effect's class"), null, state,
-        Objects.requireNonNull(ret, "ret"), Objects.requireNonNull(cases, "the clauses"));
+    return new Fold<>(new OfClass<>(Objects.requireNonNull(effect, "the effect's class"),
+        Objects.requireNonNull(cases, "the clauses")), state, Objects.requireNonNull(ret, "ret"));
   }
 
   /**
@@ -190,15 +213,11 @@ public final class Fx {
    * effect F. It is found by that object, not by a class; and its clauses are given the operations as what the
    * template made them, O — the template made every operation that says `of`, which is why that is so.
    */
-  @SuppressWarnings("unchecked")
   public static <O, F, S, A, B, R> Handler<F, A, B, R> by(Object of, S state, BiFunction<S, A, B> ret,
                                                          Function<O, Case<F, S, B, R>> cases) {
-    return new Fold<>(Nothing.class, Objects.requireNonNull(of, "of"), state, Objects.requireNonNull(ret, "ret"),
-        (Function<F, Case<F, S, B, R>>) (Function<?, ?>) Objects.requireNonNull(cases, "the clauses"));
+    return new Fold<>(new OfObject<>(Objects.requireNonNull(of, "of"), Objects.requireNonNull(cases, "the clauses")),
+        state, Objects.requireNonNull(ret, "ret"));
   }
-
-  /** The class of a handler that is found by an object: no operation is of it. */
-  private static final class Nothing {}
 
   /** A handler with no state that gives what its part gives: handling(Effect.class, op -> switch (op) { .. }). */
   public static <F, B, R> Handler<F, B, B, R> handling(Class<F> effect, Function<F, Case<F, Void, B, R>> cases) {
@@ -284,13 +303,9 @@ public final class Fx {
         switch (steps) {
           case Then<?, ?, ?> step -> steps = step.after;
           case Mapping<?, ?, ?> step -> steps = step.after;
-          case Closing<?, ?> mark -> {
-            steps = mark.after;
-            mark.close.run();
-          }
-          case Taken<?, ?> mark -> {
-            steps = mark.after;
-            if (!mark.k.gone) mark.k.left(thrown);
+          case Mark<?, ?> mark -> {
+            steps = mark.after();
+            mark.ended(thrown);
           }
           case End<?> end -> { }
         }
@@ -357,20 +372,28 @@ public final class Fx {
   /** map: a value of it. */
   private record Mapping<A, X, Z>(Function<? super A, ? extends X> f, Rest<X, Z> after) implements Rest<A, Z> {}
 
-  /** A mark of ensuring: when the value passes it, the part it was for has ended. */
-  private record Closing<A, Z>(Runnable close, Rest<A, Z> after) implements Rest<A, Z> {}
+  /** A mark among the steps: when the value passes it, what it was put for has ended. */
+  private sealed interface Mark<A, Z> extends Rest<A, Z> {
+    Rest<A, Z> after();
 
-  /** A mark under a clause: the rest that clause was given, to see when it ends whether it went on with it. */
-  private record Taken<A, Z>(K<?, ?, ?, A, ?> k, Rest<A, Z> after) implements Rest<A, Z> {}
+    /** It has ended: with a value, or — `thrown` — under an exception. */
+    void ended(Throwable thrown);
+  }
+
+  /** The mark of ensuring: the part it was for has ended. */
+  private record Closing<A, Z>(Runnable close, Rest<A, Z> after) implements Mark<A, Z> {
+    @Override public void ended(Throwable thrown) { close.run(); }
+  }
+
+  /** The mark under a clause, with the rest that clause was given: a rest it did not go on with was left. */
+  private record Taken<A, Z>(K<?, ?, ?, A, ?> k, Rest<A, Z> after) implements Mark<A, Z> {
+    @Override public void ended(Throwable thrown) { if (!k.gone) k.left(thrown); }
+  }
 
   /** No steps: the value is the part's. */
   private record End<A>() implements Rest<A, A> {
-    private static final End<Object> NONE = new End<>();
     @Override public A end(A value) { return value; }
   }
-
-  @SuppressWarnings("unchecked")
-  private static <A> Rest<A, A> end() { return (Rest<A, A>) (Rest<?, ?>) End.NONE; }      // one End, of any type
 
   /** The parts being run: the innermost gives A, the whole program Z. */
   private sealed interface Around<A, Z> {
@@ -390,12 +413,13 @@ public final class Fx {
    */
   private static final class In<F, S, A, B, R, Y, Z> implements Around<A, Z> {
     private final Fold<F, S, A, B, R> handler;
+    private final Cases<F, S, B, R> cases;   // the handler's, here for the machine that looks for a handler
     private S state;
     private final Rest<B, Y> rest;
     private final Around<Y, Z> outer;
 
     private In(Fold<F, S, A, B, R> handler, S state, Rest<B, Y> rest, Around<Y, Z> outer) {
-      this.handler = handler; this.state = state; this.rest = rest; this.outer = outer;
+      this.handler = handler; this.cases = handler.cases; this.state = state; this.rest = rest; this.outer = outer;
     }
 
     @Override public <U, C, V, W> Around<A, W> anew(K<?, ?, U, C, ?> k, U state, Rest<C, V> rest, Around<V, W> now) {
@@ -406,15 +430,11 @@ public final class Fx {
 
   /** No part: the value is the program's. */
   private record Top<A>() implements Around<A, A> {
-    private static final Top<Object> NONE = new Top<>();
     @Override public A result(A value) { return value; }
     @Override public <S, B, Y, W> Around<A, W> anew(K<?, ?, S, B, ?> k, S state, Rest<B, Y> rest, Around<Y, W> now) {
       throw new IllegalStateException("a rest without its handler's part");
     }
   }
-
-  @SuppressWarnings("unchecked")
-  private static <A> Around<A, A> none() { return (Around<A, A>) (Around<?, ?>) Top.NONE; }   // one Top, of any type
 
   /** Where a program was when it failed: added to the exception, which is thrown on as it is. */
   public static final class Where extends RuntimeException {
@@ -472,7 +492,7 @@ public final class Fx {
     private Machine(Consumer<? super Op<?, ?>> see) { this.see = see; }
 
     private Z run(Comp<Z, ?> program) {
-      At<Z> at = new Run<>(program, Fx.<Z>end(), Fx.<Z>none());
+      At<Z> at = new Run<>(program, new End<>(), new Top<>());
       try {
         while (!(at instanceof Done<Z> done)) at = at.next(this);
         return done.result;
@@ -525,7 +545,7 @@ public final class Fx {
 
     private <F, S, P, A, R, Y> At<Z> in(Fold<F, S, P, A, R> handler, Comp<P, ?> part, Rest<A, Y> rest,
                                         Around<Y, Z> around) {
-      return new Run<>(part, Fx.<P>end(), new In<>(handler, handler.state, rest, around));
+      return new Run<>(part, new End<>(), new In<>(handler, handler.state, rest, around));
     }
 
     /** An operation is asked: the nearest part whose handler's effect it is of answers. */
@@ -534,44 +554,51 @@ public final class Fx {
       asked = op;
       if (see != null) see.accept(op);
       Object of = op.of();                              // what it says it is of; none: its class says
-      Around<?, Z> own = around;
-      while (own instanceof In<?, ?, ?, ?, ?, ?, Z> part) {
-        if (of == null ? part.handler.effect.isInstance(op) : part.handler.of == of) {
-          return answer(part, asks, op, rest, around, more);
-        }
-        own = part.outer;
+      for (Around<?, Z> at = around; at instanceof In<?, ?, ?, ?, ?, ?, Z> part; at = part.outer) {
+        if (part.cases.has(op, of)) return answer(part, asks, rest, around, more);
       }
       throw new IllegalStateException("no handler for " + op);
     }
 
-    /** This part answers: the operation is of its handler's effect. */
-    private <F, S, P, B, R, W, X, A, Y> At<Z> answer(In<F, S, P, B, R, W, Z> own, Asks<X, A> asks, Op<X, ?> op,
-                                                     Rest<A, Y> rest, Around<Y, Z> around, int more) {
-      switch (own.handler.cases.apply(own.handler.own(op))) {
-        case Answer<?, F, S, B, R> answered -> {
-          return asks.answered(this, answered.of(op), rest, around, more);
-        }
-        case Takes<F, S, B, R> takes -> {                 // the rest, to the end of the handler's part
-          Rest<X, Y> after = asks.after(rest);
-          K<X, Y, S, B, R> k = new K<>(after, around, own);
-          Comp<B, R> does = switch (takes) {
-            case On<?, F, S, B, R> on -> on.of(op).on(own.state, k);
-            case Keep<?, F, S, B, R> keep -> keep.of(op).on(own.state, k);
-            case Leave<F, S, B, R> leave -> new Pure<>(leave.value);
-          };
-          Resume<X, S, B, R> only = k.only(does);
-          if (only != null) {
-            // The clause only goes on with the rest: nothing was run between, so nothing is taken off or put back,
-            // and the state moves on where it is. (A rest that may be kept takes parts of its own.)
-            if (takes instanceof Keep) k.keep();
-            own.state = only.state();
-            return give(only.value(), after, around);
-          }
-          // The rest is taken off, with its parts: they are the rest's now, and run by no one. The clause is a
-          // program of what is around that part; under it, a mark: was the rest gone on with.
-          return new Run<>(does, takes instanceof Keep ? own.rest : new Taken<>(k, own.rest), own.outer);
-        }
+    /** This part answers: the operation is its handler's. */
+    private <F, S, P, B, R, W, A, Y> At<Z> answer(In<F, S, P, B, R, W, Z> own, Asks<?, A> asks, Rest<A, Y> rest,
+                                                  Around<Y, Z> around, int more) {
+      return switch (own.handler.cases.of(asks.op())) {
+        case Answer<?, F, S, B, R> answer -> answered(answer, asks, rest, around, more);
+        case With<?, F, S, B, R> with -> taken(own, with, asks, rest, around);
+        case Leave<F, S, B, R> leave -> left(own, leave.value, asks, rest, around);
+      };
+    }
+
+    private <X, A, Y> At<Z> answered(Answer<X, ?, ?, ?, ?> answer, Asks<?, A> asks, Rest<A, Y> rest,
+                                     Around<Y, Z> around, int more) {
+      return answer.asked(asks).answered(this, answer.answer, rest, around, more);
+    }
+
+    /** A clause is given the rest, to the end of its handler's part. */
+    private <X, F, S, P, B, R, W, A, Y> At<Z> taken(In<F, S, P, B, R, W, Z> own, With<X, F, S, B, R> with,
+                                                    Asks<?, A> asks, Rest<A, Y> rest, Around<Y, Z> around) {
+      Rest<X, Y> after = with.asked(asks).after(rest);
+      K<X, Y, S, B, R> k = new K<>(after, around, own);
+      Comp<B, R> does = with.clause().on(own.state, k);
+      Resume<X, S, B, R> only = k.only(does);
+      if (only != null) {
+        // The clause only goes on with the rest: nothing was run between, so nothing is taken off or put back,
+        // and the state moves on where it is. (A rest that may be kept takes parts of its own.)
+        if (with instanceof Keep) k.keep();
+        own.state = only.state();
+        return give(only.value(), after, around);
       }
+      // The rest is taken off, with its parts: they are the rest's now, and run by no one. The clause is a
+      // program of what is around that part; under it, a mark: was the rest gone on with.
+      return new Run<>(does, with instanceof Keep ? own.rest : new Taken<>(k, own.rest), own.outer);
+    }
+
+    /** The part is left with a value: the rest is taken off, and nothing goes on with it. */
+    private <X, F, S, P, B, R, W, A, Y> At<Z> left(In<F, S, P, B, R, W, Z> own, B value, Asks<X, A> asks,
+                                                   Rest<A, Y> rest, Around<Y, Z> around) {
+      K<X, Y, S, B, R> k = new K<>(asks.after(rest), around, own);
+      return new Run<>(new Pure<B, R>(value), new Taken<>(k, own.rest), own.outer);
     }
 
     /**
@@ -600,20 +627,11 @@ public final class Fx {
       return switch (rest) {
         case Then<A, ?, Y> step -> then(step, value, around);
         case Mapping<A, ?, Y> step -> mapped(step, value, around, more);
-        case Closing<A, Y> mark -> {                      // the part it was for has ended
-          At<Z> next = new Give<>(value, mark.after, around);
+        case Mark<A, Y> mark -> {                         // what it was put for has ended
+          At<Z> next = new Give<>(value, mark.after(), around);
           failed = next;                                  // should it fail, it is not to be run again
-          mark.close.run();
+          mark.ended(null);
           failed = null;
-          yield next;
-        }
-        case Taken<A, Y> mark -> {                        // its clause has ended: was the rest gone on with?
-          At<Z> next = new Give<>(value, mark.after, around);
-          if (!mark.k.gone) {
-            failed = next;
-            mark.k.left(null);
-            failed = null;
-          }
           yield next;
         }
         case End<?> none -> ended(rest.end(value), around, more);
@@ -654,7 +672,7 @@ public final class Fx {
     private void close(Throwable thrown, Rest<?, ?> rest, Around<?, Z> around) {
       String in = "";
       for (Around<?, ?> at = around; at instanceof In<?, ?, ?, ?, ?, ?, ?> part; at = part.outer) {
-        in += " " + part.handler.name();
+        in += " " + part.handler.cases;
       }
       thrown.addSuppressed(new Where("the program had last asked " + asked + "; handlers in force, the nearest first:"
           + (in.isEmpty() ? " none" : in)));
