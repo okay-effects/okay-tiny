@@ -72,8 +72,26 @@ result is a `CompletableFuture`, and its clause, where there is something to wai
 List<CompletableFuture<X>> started = started(await);
 CompletableFuture<Void> all = all(started);
 if (all.isDone()) return answer(await, started);          // nothing to wait for: answered where it is asked
-return keep(await, (s, k) -> pure(all.thenCompose(done -> run(k.apply(started, null), see))));   // in a run of its own
+return keep(await, (s, k) -> {
+  Thread giver = Thread.currentThread();
+  boolean[] giving = {true}, ended = {false};
+  CompletableFuture<A> later = all.thenCompose(done -> {
+    if (Thread.currentThread() == giver && giving[0]) {   // called as it is given: the work has just ended
+      ended[0] = true;
+      return CompletableFuture.completedFuture(null);
+    }
+    return run(k.apply(started, null), see);              // the rest, in a run of its own
+  });
+  giving[0] = false;
+  return ended[0] ? k.apply(started, null) : pure(later);
+});
 ```
+
+The middle case is work that ends between the test and `thenCompose`: a `CompletableFuture` then calls the
+callback at once, inside the clause. Running the rest there would be a run inside a run, and it would stay
+on the stack through every later wait of that kind — work that ends quickly makes a stack that only grows.
+So the clause sees that it was called as it gave the callback, and gives the rest to the run it is in
+(`AsyncTest.workThatEndsAsItIsWaitedForLeavesNoCallInACall`).
 
 `k` is a value, so it can be handed to a callback; and the rest of a part of the outermost handler asks nothing,
 so it can be given to `run` again. `keep` is `on` for a clause that does this: the kernel then does not take

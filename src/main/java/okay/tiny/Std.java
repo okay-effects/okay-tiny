@@ -245,8 +245,22 @@ public final class Std {
     List<CompletableFuture<X>> started = started(await);
     CompletableFuture<Void> all = all(started);
     if (all.isDone()) return answer(await, started);              // nothing to wait for: answered where it is asked
-    // else the rest is kept, and goes on in a run of its own
-    return keep(await, (s, k) -> pure(all.thenCompose(done -> run(k.apply(started, null), see))));
+    // Else the rest is kept, and goes on in a run of its own, on the thread that ends the work. Work that ends just
+    // now has its callback called as it is given, here, inside this clause: the rest is then gone on with by this
+    // run, as a program — a run inside the clause would be a call in a call for every such wait.
+    return keep(await, (s, k) -> {
+      Thread giver = Thread.currentThread();
+      boolean[] giving = {true}, ended = {false};
+      CompletableFuture<A> later = all.thenCompose(done -> {
+        if (Thread.currentThread() == giver && giving[0]) {
+          ended[0] = true;
+          return CompletableFuture.completedFuture(null);         // of no one: the clause gives the rest itself
+        }
+        return run(k.apply(started, null), see);
+      });
+      giving[0] = false;
+      return ended[0] ? k.apply(started, null) : pure(later);
+    });
   }
 
   /** Each started; one that throws where it starts is a stage that failed. */

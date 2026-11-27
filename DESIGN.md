@@ -259,6 +259,13 @@ way every rest taken off goes, and nothing a rest holds is ever run. It costs th
 asynchrony, the one place that went that way, does not: with nothing to wait for it answers with `answer`
 (`StateBench.awaitDone`: 43 ns before and after).
 
+**Asynchrony: a callback called as it is given.** `Std.start` ran the rest from the callback of the work
+waited for. A `CompletableFuture` that has ended calls a callback where it is given: for work that ended
+between the test for it and the giving, the rest ran inside the clause, a run in a run, and with work that
+ends quickly the stack only grew — measured, 27 frames at a wait became 86 to 888 over twenty thousand
+waits, and a `StackOverflowError` in a stack of 256k. The clause now tells that case and goes on with the
+rest as a program of its own run: 27 to 31 frames, however many waits.
+
 ## 6. What is not here
 
 - **Direct style, in the kernel.** Without threads or a transformation there is none in Java. It is beside the

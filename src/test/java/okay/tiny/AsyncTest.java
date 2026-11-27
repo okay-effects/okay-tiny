@@ -173,12 +173,45 @@ class AsyncTest {
   }
 
   /**
-   * Work that ends on another thread, a thousand times over: now it is done before the program asks, now after
-   * it has kept its rest, and now between the two — when the rest is run inside the clause that keeps it.
+   * Work that another thread ends as soon as it sees it, twenty thousand times over: now it is done before the
+   * program asks, and now just after — when its callback is called as it is given, inside the clause that keeps
+   * the rest. The rest is not run there, a call in a call for every such wait: the stack is no deeper at the
+   * last wait than at the first.
    */
   @Test
+  void workThatEndsAsItIsWaitedForLeavesNoCallInACall() throws Exception {
+    var given = new java.util.concurrent.atomic.AtomicReference<CompletableFuture<Long>>();
+    var going = new java.util.concurrent.atomic.AtomicBoolean(true);
+    var first = new java.util.concurrent.atomic.AtomicInteger();
+    var deepest = new java.util.concurrent.atomic.AtomicInteger();
+    Thread ends = new Thread(() -> {
+      while (going.get()) {
+        CompletableFuture<Long> work = given.getAndSet(null);
+        if (work != null) work.complete(1L); else Thread.onSpinWait();
+      }
+    });
+    ends.setDaemon(true);
+    ends.start();
+    try {
+      CompletableFuture<Long> sum = start(sum(20_000, 0, () -> {
+        int depth = StackWalker.getInstance().walk(frames -> (int) frames.count());
+        first.compareAndSet(0, depth);
+        deepest.accumulateAndGet(depth, Math::max);
+        CompletableFuture<Long> work = new CompletableFuture<>();
+        given.set(work);
+        return work;
+      }));
+      assertEquals(20_000L, sum.get(60, TimeUnit.SECONDS));
+      assertTrue(deepest.get() <= first.get() + 20, "the stack grew from " + first + " frames to " + deepest);
+    } finally {
+      going.set(false);
+    }
+  }
+
+  /** And on a pool, where it is also waited for. */
+  @Test
   void workThatEndsOnAnotherThreadAtAnyMoment() throws Exception {
-    CompletableFuture<Long> sum = start(sum(1000, 0, () -> CompletableFuture.supplyAsync(() -> 1L)));
-    assertEquals(1000L, sum.get(30, TimeUnit.SECONDS));
+    CompletableFuture<Long> sum = start(sum(20_000, 0, () -> CompletableFuture.supplyAsync(() -> 1L)));
+    assertEquals(20_000L, sum.get(60, TimeUnit.SECONDS));
   }
 }

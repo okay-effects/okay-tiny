@@ -553,7 +553,9 @@ public final class Fx {
 
     private <X, A, Y> At<Z> answered(Answer<X, ?, ?, ?, ?> answer, Asks<?, A> asks, Rest<A, Y> rest,
                                      Around<Y, Z> around, int more) {
-      return on(answer.asked(asks).given(answer.answer), rest, around, more);
+      Comp<A, ?> now = answer.asked(asks).given(answer.answer);
+      // a program that is a value — nothing follows the operation — is given, not run: no node is made for it
+      return now instanceof Pure<A, ?> pure ? give(pure.value(), rest, around) : on(now, rest, around, more);
     }
 
     /** A clause is given the rest, to the end of its handler's part. */
