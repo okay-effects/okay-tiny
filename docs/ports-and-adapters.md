@@ -110,7 +110,7 @@ final class PaymentsWithEffects {
   private final Clock clock;
 
   Receipt pay(String from, String to, long amount) {
-    return run(Fx.<Receipt>top().handler(bank(accounts)).handler(time(clock)).handler(throwing())
+    return run(Fx.<Receipt>top().handler(throwing()).handler(time(clock)).handler(bank(accounts))
         .handle(PortsTest.pay(from, to, amount)));
   }
 }
@@ -161,7 +161,7 @@ static <A, R extends Bank> Handler<Bank, A, Planned<A>, R> dry() {
 }
 
 static <R extends Bank & Time & Refuse> Comp<Planned<Receipt>, R> planned(String from, String to, long amount) {
-  return Fx.<R, Receipt>row().handler(dry()).handle(pay(from, to, amount));
+  return Fx.<R, Planned<Receipt>>row().handler(dry()).handle(pay(from, to, amount));
 }
 ```
 

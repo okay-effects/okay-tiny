@@ -102,7 +102,7 @@ class PortsTest {
     PaymentsWithEffects(Accounts accounts, Clock clock) { this.accounts = accounts; this.clock = clock; }
 
     Receipt pay(String from, String to, long amount) {
-      return run(Fx.<Receipt>top().handler(bank(accounts)).handler(time(clock)).handler(throwing())
+      return run(Fx.<Receipt>top().handler(throwing()).handler(time(clock)).handler(bank(accounts))
           .handle(PortsTest.pay(from, to, amount)));
     }
   }
@@ -145,7 +145,7 @@ class PortsTest {
 
   /** It reads through the bank outside it, so it stands inside a program whose row keeps Bank. */
   static <R extends Bank & Time & Refuse> Comp<Planned<Receipt>, R> planned(String from, String to, long amount) {
-    return Fx.<R, Receipt>row().handler(dry()).handle(pay(from, to, amount));
+    return Fx.<R, Planned<Receipt>>row().handler(dry()).handle(pay(from, to, amount));
   }
 
   @Test
@@ -155,19 +155,20 @@ class PortsTest {
 
     // every operation, as data
     var audit = new ArrayList<Op<?, ?>>();
-    run(world.handler(bank(accounts)).handler(time(() -> 1700)).handler(throwing()).handle(pay("ann", "bob", 30)),
+    run(world.handler(throwing()).handler(time(() -> 1700)).handler(bank(accounts)).handle(pay("ann", "bob", 30)),
         audit::add);
     assertEquals(List.of(new Bank.Balance("ann"), new Bank.Move("ann", "bob", 30), new Time.Now()), audit);
 
     // a refusal as a value
-    Optional<Receipt> none = run(world.handler(optional()).handler(bank(accounts)).handler(time(() -> 1700))
+    Optional<Receipt> none = run(Fx.<Optional<Receipt>>top().handler(time(() -> 1700)).handler(bank(accounts))
+        .handler(optional())
         .handle(pay("ann", "bob", 500)));
     assertEquals(Optional.empty(), none);
 
     // a dry run: the real balances are read, nothing is moved
     Map<String, Long> untouched = Map.copyOf(accounts.balances);
     Planned<Receipt> plan = run(Fx.<Planned<Receipt>>top()
-        .handler(bank(accounts)).handler(time(() -> 1700)).handler(throwing())
+        .handler(throwing()).handler(time(() -> 1700)).handler(bank(accounts))
         .handle(planned("ann", "bob", 30)));
     assertEquals(List.of(new Bank.Move("ann", "bob", 30)), plan.moves());
     assertEquals(untouched, accounts.balances);

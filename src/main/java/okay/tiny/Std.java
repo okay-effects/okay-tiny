@@ -192,7 +192,7 @@ public final class Std {
           case Async.Await<?> await -> later(await, see);
         });
     try {
-      return run(Fx.<A>top().handler(later).handle(program), see);
+      return run(Fx.<CompletableFuture<A>>top().handler(later).handle(program), see);
     } catch (Throwable thrown) {
       return CompletableFuture.failedFuture(thrown);
     }

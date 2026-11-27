@@ -24,7 +24,7 @@ class ScenariosTest {
 
   @Test
   void theHandlersArePutOnceAroundTheWholeProgram() {
-    Order o = run(Fx.<Order>top().handler(stock(left)).handler(first()).handler(clockAt(1000))
+    Order o = run(Fx.<Order>top().handler(clockAt(1000)).handler(first()).handler(stock(left))
         .handle(place(good)));
     assertEquals(new Order("a@b.c", 2, 1000), o);
   }
@@ -32,21 +32,21 @@ class ScenariosTest {
   @Test
   void theSameProgramTheFirstRefusalStopsIt() {
     BadRequest refused = assertThrows(BadRequest.class, () ->
-        run(Fx.<Order>top().handler(stock(left)).handler(first()).handler(clockAt(1)).handle(place(bad))));
+        run(Fx.<Order>top().handler(clockAt(1)).handler(first()).handler(stock(left)).handle(place(bad))));
     assertEquals("email: required", refused.getMessage());
   }
 
   /** The refusals are the handler's state; where the part ends it gives them with the part's value. */
   @Test
   void theSameProgramAllRefusalsAreCollectedAndItGoesOn() {
-    Checked all = run(Fx.<Checked>top().handler(stock(left)).handler(clockAt(1)).handle(placeAll(bad)));
+    Checked all = run(Fx.<Checked>top().handler(clockAt(1)).handler(stock(left)).handle(placeAll(bad)));
     assertEquals(List.of("email: required", "tea: out of stock", "pot: out of stock"), all.refused());
     assertEquals(1, all.order().lines());
   }
 
   @Test
   void aPartIsLeftWithAValueOfTheHandlers() {
-    var two = Fx.<Optional<Order>>top().handler(stock(left)).handler(clockAt(9));
+    var two = Fx.<Optional<Order>>top().handler(clockAt(9)).handler(stock(left));
     assertEquals(Optional.of(new Order("a@b.c", 2, 9)), run(two.handle(tried(good))));
     assertEquals(Optional.empty(), run(two.handle(tried(bad))));
   }
@@ -72,7 +72,7 @@ class ScenariosTest {
     Comp<String, Choice> flips = perform(new Choice.Flip()).flatMap(a ->
         perform(new Choice.Flip()).map(b -> a + "," + b));
     assertEquals(List.of("true,true", "true,false", "false,true", "false,false"),
-        run(Fx.<String>top().handler(bothWays()).handle(flips)));
+        run(Fx.<List<String>>top().handler(bothWays()).handle(flips)));
   }
 
   @Test
@@ -88,7 +88,7 @@ class ScenariosTest {
   @Test
   void everyOperationOfAnEffectIsSeen() {
     var trace = new ArrayList<Object>();
-    run(Fx.<Order>top().handler(stock(left)).handler(first()).handler(clockAt(1)).handle(traced(good, trace)));
+    run(Fx.<Order>top().handler(clockAt(1)).handler(first()).handler(stock(left)).handle(traced(good, trace)));
     assertEquals(List.of(new Stock.Reserve("tea", 2), new Stock.Reserve("cup", 1)), trace);
   }
 
@@ -99,7 +99,7 @@ class ScenariosTest {
         .handler(leaving("left"))
         .handle(perform(new Choice.Flip()).flatMap(a ->
             a ? pure("stayed") : perform(new Refusal.Invalid("f", "w")).map(v -> "never")));
-    assertEquals(List.of("stayed", "left"), run(Fx.<String>top().handler(bothWays()).handle(flipInPart)));
+    assertEquals(List.of("stayed", "left"), run(Fx.<List<String>>top().handler(bothWays()).handle(flipInPart)));
   }
 
   /** Many at once is an operation that holds them: what is done with them is the handler's. */
@@ -109,7 +109,7 @@ class ScenariosTest {
     assertEquals(120, run(Fx.<Long>top().handler(summed(queries)).handle(priceOf(cart))));
     assertEquals(List.of("all of [tea, cup, kettle]"), queries);                // one query for them all
     assertEquals(List.of("costs 4", "costs 5", "costs 111"),                    // or the rest for each of them
-        run(Fx.<String>top().handler(eachWay()).handle(priceOf(cart).map(p -> "costs " + p))));
+        run(Fx.<List<String>>top().handler(eachWay()).handle(priceOf(cart).map(p -> "costs " + p))));
   }
 
   @Test
@@ -142,24 +142,27 @@ class ScenariosTest {
   /** A rest gone on with twice: a state inside the choice is one for each way, outside it one through both. */
   @Test
   void aStateIsAValueOfEachWay() {
-    Comp<List<String>, Object> inside = Fx.<String>top().handler(bothWays())
+    Comp<List<String>, Object> inside = Fx.<List<String>>top().handler(bothWays())
         .handle(Fx.<Choice, String>row().handler(counting()).handle(flipThenCount()));
     assertEquals(List.of("true 1", "false 1"), run(inside));
     Comp<List<String>, Object> outside = Fx.<List<String>>top().handler(counting())
-        .handle(Fx.<Counter, String>row().handler(bothWays()).handle(flipThenCount()));
+        .handle(Fx.<Counter, List<String>>row().handler(bothWays()).handle(flipThenCount()));
     assertEquals(List.of("true 1", "false 2"), run(outside));
   }
 
   @Test
   void theStatesOfSeveralHandlersAtOnce() {
     assertEquals("[true 2, false 2] [true:1:1, false:1:1]",                     // both inside the choice
-        run(Fx.<String>top().handler(ticking()).handler(counting()).handler(bothWays()).handler(logging())
+        run(Fx.<String>top().handler(Shop.<List<String>, Object>logging()).handler(bothWays()).handler(counting())
+            .handler(ticking())
             .handle(told())));
     assertEquals("[true 2, false 4] [true:1:1, false:3:1]",                     // the counter outside it
-        run(Fx.<String>top().handler(ticking()).handler(bothWays()).handler(counting()).handler(logging())
+        run(Fx.<String>top().handler(Shop.<List<String>, Object>logging()).handler(counting()).handler(bothWays())
+            .handler(ticking())
             .handle(told())));
     assertEquals("[true 2, false 4] [true:1:1, false:3:2]",                     // the clock too
-        run(Fx.<String>top().handler(bothWays()).handler(ticking()).handler(counting()).handler(logging())
+        run(Fx.<String>top().handler(Shop.<List<String>, Object>logging()).handler(counting()).handler(ticking())
+            .handler(bothWays())
             .handle(told())));
   }
 
@@ -186,8 +189,8 @@ class ScenariosTest {
   /** No switch: whatever operation of the effect is asked, the part is left with the value. */
   @Test
   void aClauseForAnyOperationLeavesThePart() {
-    Comp<Optional<Order>, Object> tried = Fx.<Order>top().handler(tryingAny())
-        .handler(stock(left)).handler(clockAt(1))
+    Comp<Optional<Order>, Object> tried = Fx.<Optional<Order>>top().handler(clockAt(1))
+        .handler(stock(left)).handler(tryingAny())
         .handle(place(bad));
     assertEquals(Optional.empty(), run(tried));
   }
@@ -219,7 +222,7 @@ class ScenariosTest {
   @Test
   void whatIsToBeClosedIsClosedUnderAnException() {
     var log = new ArrayList<String>();
-    Comp<Order, Object> failing = Fx.<Order>top().handler(stock(left)).handler(first()).handler(clockAt(1))
+    Comp<Order, Object> failing = Fx.<Order>top().handler(clockAt(1)).handler(first()).handler(stock(left))
         .handle(ensuring(ensuring(place(bad), () -> log.add("inner closed")), () -> log.add("outer closed")));
     BadRequest thrown = assertThrows(BadRequest.class, () -> run(failing));
     assertEquals(List.of("inner closed", "outer closed"), log);
@@ -234,7 +237,7 @@ class ScenariosTest {
     var log = new ArrayList<String>();
     Comp<String, Choice> flip = ensuring(
         perform(new Choice.Flip()).map(way -> { log.add("way " + way); return "" + way; }), () -> log.add("closed"));
-    assertEquals(List.of("true", "false"), run(Fx.<String>top().handler(bothWays()).handle(flip)));
+    assertEquals(List.of("true", "false"), run(Fx.<List<String>>top().handler(bothWays()).handle(flip)));
     assertEquals(List.of("way true", "closed", "way false", "closed"), log);
   }
 
@@ -242,7 +245,7 @@ class ScenariosTest {
   @Test
   void aRestGoneOnWithAndThenLeftIsClosedOnce() {
     var log = new ArrayList<String>();
-    Comp<String, Object> program = Fx.<String>top().handler(leaving("left")).handler(counting())
+    Comp<String, Object> program = Fx.<String>top().handler(counting()).handler(leaving("left"))
         .handle(ensuring(
             perform(new Counter.Next()).flatMap(n -> perform(new Refusal.Invalid("f", "w"))).map(v -> "never"),
             () -> log.add("closed")));
@@ -258,7 +261,7 @@ class ScenariosTest {
   @Test
   void anObserverIsGivenEveryOperation() {
     var seen = new ArrayList<Op<?, ?>>();
-    run(Fx.<Order>top().handler(stock(left)).handler(first()).handler(clockAt(7)).handle(place(good)), seen::add);
+    run(Fx.<Order>top().handler(clockAt(7)).handler(first()).handler(stock(left)).handle(place(good)), seen::add);
     assertEquals(List.of(new Stock.Reserve("tea", 2), new Stock.Reserve("cup", 1), new Clock.Now()), seen);
   }
 
@@ -267,7 +270,7 @@ class ScenariosTest {
   void anObserverRefusesAnOperation() {
     var seen = new ArrayList<Op<?, ?>>();
     IllegalStateException refused = assertThrows(IllegalStateException.class, () ->
-        run(Fx.<Order>top().handler(stock(left)).handler(first()).handler(clockAt(7)).handle(place(good)), op -> {
+        run(Fx.<Order>top().handler(clockAt(7)).handler(first()).handler(stock(left)).handle(place(good)), op -> {
           if (op instanceof Stock.Reserve r && r.sku().equals("cup")) throw new IllegalStateException("no cups today");
           seen.add(op);
         }));
@@ -290,7 +293,7 @@ class ScenariosTest {
   void aRestKeptIsGoneOnWithLaterInARunOfItsOwn() {
     var log = new ArrayList<String>();
     Comp<Long, Clock> part = ensuring(perform(new Clock.Now()), () -> log.add("closed"));
-    Supplier<Long> later = run(Fx.<Long>top().handler(paused(log)).handle(part.map(t -> t + 1)));
+    Supplier<Long> later = run(Fx.<Supplier<Long>>top().handler(paused(log)).handle(part.map(t -> t + 1)));
     assertEquals(List.of(), log);                       // the part has not ended: nothing is closed yet
     assertEquals(8L, later.get());
     assertEquals(List.of("going on", "closed"), log);
@@ -299,7 +302,7 @@ class ScenariosTest {
   /** A state handler put anew at every level, and at the bottom a choice of the handler around them all. */
   static <R extends Std.Choice> Comp<Integer, R> deep(int level) {
     if (level == 0) return Std.choose(List.of(1, 2));
-    Comp<Integer, R> inside = Fx.<R, Void>row().handler(Std.<Integer, Void, R>state(level))
+    Comp<Integer, R> inside = Fx.<R, Std.Final<Integer, Void>>row().handler(Std.<Integer, Void, R>state(level))
         .handle(Tower.level(level)).map(Std.Final::state);
     return inside.flatMap(sum -> Fx.<R, Integer>row().handler(Std.<Integer, Integer, R>env(sum))
         .handle(Std.ask()));                           // and a part more, put after the rest has gone on
@@ -318,7 +321,7 @@ class ScenariosTest {
   @Test
   void partsDeepOneInAnotherKeepTheirStatesOnEveryWay() {
     int levels = 300, sum = levels * (levels + 1) / 2;
-    assertEquals(List.of(sum + 1, sum + 2), run(Fx.<Integer>top().handler(Std.all()).handle(deep(levels))));
+    assertEquals(List.of(sum + 1, sum + 2), run(Fx.<List<Integer>>top().handler(Std.all()).handle(deep(levels))));
   }
 
   static <R> Comp<Long, R> under(int levels) {
@@ -334,10 +337,11 @@ class ScenariosTest {
 
   /** Three parts one in another, each with a state of its own, and nothing else. */
   static Comp<Integer, Object> threeParts() {
-    Comp<Integer, Object> inner = Fx.<Integer>top().handler(Std.state(300))
+    Comp<Integer, Object> inner = Fx.<Std.Final<Integer, Integer>>top().handler(Std.state(300))
         .handle(Std.<Integer, Std.State<Integer>>get()).map(Std.Final::state);
-    Comp<Integer, Object> middle = Fx.<Integer>top().handler(Std.state(200)).handle(inner).map(Std.Final::state);
-    return Fx.<Integer>top().handler(Std.state(100)).handle(middle).map(Std.Final::state);
+    Comp<Integer, Object> middle = Fx.<Std.Final<Integer, Integer>>top().handler(Std.state(200))
+        .handle(inner).map(Std.Final::state);
+    return Fx.<Std.Final<Integer, Integer>>top().handler(Std.state(100)).handle(middle).map(Std.Final::state);
   }
 
   /** A clock whose clause runs parts of its own before it goes on with the rest. */
@@ -356,7 +360,8 @@ class ScenariosTest {
   @Test
   void theStatesOfARestTakenOffAreItsOwn() {
     assertEquals(new Std.Told<>(List.of("before", "at 7"), new Std.Final<>(0, "done")),
-        run(Fx.<String>top().handler(Std.state(0)).handler(Std.told(String.class)).handler(busyClock())
+        run(Fx.<Std.Told<String, Std.Final<Integer, String>>>top().handler(busyClock()).handler(Std.told(String.class))
+            .handler(Std.state(0))
             .handle(toldAroundTheClock())));
   }
 

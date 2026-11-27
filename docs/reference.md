@@ -11,7 +11,7 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 | `Handler<F, A, B, R>` | a handler of the effect `F`: the part it is around gives `A`, it gives `B`, its clauses ask `R` |
 | `Clause<X, S, B, R>` | what a handler does for one operation: `(state, k) -> Comp<B, R>`; `X` is the operation's answer type |
 | `Case<F, S, B, R>` | a clause together with the operation it was made for; made only by `on`, `answer`, `leave` |
-| `Handlers<R, W, A, B>` | handlers being put: `R` stays, `W` is what the part may ask, the part gives `A`, they give `B` |
+| `Handlers<R, W, A, B>` | handlers being put, the outermost first: `R` stays, they give `B`; `W` is the row inside them, and `A` what is to be given there |
 | `Fx.Where` | added (suppressed) to an exception thrown out of `run`: the operation asked last, the handlers in force |
 
 `k`, the rest of a part, is a `BiFunction<X, S, Comp<B, R>>`: the answer and the next state.
@@ -48,9 +48,9 @@ the row `R`, so it may `perform` what stays outside its part.
 
 | | |
 |---|---|
-| `Fx.<R, A>row()` | around a part that gives `A`; the row `R` is left unanswered |
-| `Fx.<A>top()` | the same with nothing left: `Fx.<Object, A>row()` |
-| `.handler(h)` | `h` around those put before it; `h` may itself ask only `R` |
+| `Fx.<R, B>row()` | handlers, the outermost first, around a part of a program: the whole gives `B`; the row `R` is left unanswered |
+| `Fx.<B>top()` | the same with nothing left: `Fx.<Object, B>row()` |
+| `.handler(h)` | `h` inside those put before it; its row is exactly what is around it — `R` and the effects of those before it |
 | `.handle(part)` | the part with the handlers around it: `Comp<B, R>` |
 
 ## Running

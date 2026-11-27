@@ -23,7 +23,7 @@ public class PaymentService {
 
   @Transactional
   public Receipt pay(String from, String to, long amount) {
-    return run(Fx.<Receipt>top().handler(handlers.accounts()).handler(handlers.clock()).handler(handlers.refusing())
+    return run(Fx.<Receipt>top().handler(handlers.refusing()).handler(handlers.clock()).handler(handlers.accounts())
         .handle(Payments.pay(from, to, amount)), audit::record);
   }
 }
@@ -82,7 +82,8 @@ own transaction, with a refusal as a value (`leave(Optional.empty())`) and no ex
 
 ```java
 Comp<Optional<Receipt>, R> one =
-    Fx.<R, Receipt>row().handler(handlers.optional()).handle(handlers.transactional(Payments.pay(from, to, first)));
+    Fx.<R, Optional<Receipt>>row().handler(handlers.optional())
+        .handle(handlers.transactional(Payments.pay(from, to, first)));
 ```
 
 `aTransactionAroundAPartIsCommittedOrRolledBackWithThatPart`: the first payment is in the database, the second

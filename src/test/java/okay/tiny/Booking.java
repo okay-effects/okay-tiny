@@ -159,6 +159,27 @@ final class Booking {
 
   static Response book(World w, Conf c, Map<String, String> form) {
     return run(Fx.<Response>top()
+        .handler(handling(Geocoder.class, op -> switch (op) {
+          case Geocoder.Find g -> {
+            w.log.add("geocoder");
+            yield answer(g, Optional.ofNullable(w.places.get(g.address().city())));
+          }
+        }))
+        .handler(handling(Notify.class, op -> switch (op) {
+          case Notify.Tell t -> { w.notices.add(t.notice()); yield answer(t, null); }
+        }))
+        .handler(handling(Clock.class, op -> switch (op) { case Clock.Now n -> answer(n, w.now); }))
+        .handler(handling(Ids.class, op -> switch (op) {
+          case Ids.Ref r -> answer(r, r.prefix() + (++w.ids));
+          case Ids.Secret s -> answer(s, "key" + (++w.ids));
+        }))
+        .handler(handling(Captcha.class, op -> switch (op) {
+          case Captcha.Verify v -> { w.log.add("captcha"); yield answer(v, w.human); }
+        }))
+        .handler(handling(Mail.class, op -> switch (op) {
+          case Mail.ToClient m -> answer(m, w.letters.add(m.to() + ": " + m.text()));
+          case Mail.ToOwner m -> answer(m, w.letters.add("owner: " + m.text()));
+        }))
         .handler(handling(Store.class, op -> switch (op) {
           case Store.Allow a -> {
             w.log.add("store");
@@ -169,27 +190,6 @@ final class Booking {
             if (!w.taken.add(b.booking().start())) yield answer(b, Or.refused("taken"));
             w.bookings.add(b.booking());
             yield answer(b, Or.of(b.booking()));
-          }
-        }))
-        .handler(handling(Mail.class, op -> switch (op) {
-          case Mail.ToClient m -> answer(m, w.letters.add(m.to() + ": " + m.text()));
-          case Mail.ToOwner m -> answer(m, w.letters.add("owner: " + m.text()));
-        }))
-        .handler(handling(Captcha.class, op -> switch (op) {
-          case Captcha.Verify v -> { w.log.add("captcha"); yield answer(v, w.human); }
-        }))
-        .handler(handling(Ids.class, op -> switch (op) {
-          case Ids.Ref r -> answer(r, r.prefix() + (++w.ids));
-          case Ids.Secret s -> answer(s, "key" + (++w.ids));
-        }))
-        .handler(handling(Clock.class, op -> switch (op) { case Clock.Now n -> answer(n, w.now); }))
-        .handler(handling(Notify.class, op -> switch (op) {
-          case Notify.Tell t -> { w.notices.add(t.notice()); yield answer(t, null); }
-        }))
-        .handler(handling(Geocoder.class, op -> switch (op) {
-          case Geocoder.Find g -> {
-            w.log.add("geocoder");
-            yield answer(g, Optional.ofNullable(w.places.get(g.address().city())));
           }
         }))
         .handle(book(c, form, "10.0.0.1")));

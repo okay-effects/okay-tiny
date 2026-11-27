@@ -82,7 +82,8 @@ class AsyncTest {
   @Test
   void aStateGoesOnAcrossAWait() {
     Prices prices = new Prices();
-    Comp<Integer, Async> counted = Fx.<Async, Integer>row().handler(state(10)).handle(countedPrice(prices.of("a")))
+    Comp<Integer, Async> counted = Fx.<Async, Final<Integer, Integer>>row().handler(state(10))
+        .handle(countedPrice(prices.of("a")))
         .map(Final::state);
     CompletableFuture<Integer> state = start(counted);
     prices.pending.get(0).complete(5);
@@ -155,7 +156,8 @@ class AsyncTest {
   void theObserverSeesTheOperationsAfterAWaitToo() {
     Prices prices = new Prices();
     List<String> seen = new ArrayList<>();
-    Comp<Integer, Async> program = Fx.<Async, Integer>row().handler(state(0)).handle(countedPrice(prices.of("a")))
+    Comp<Integer, Async> program = Fx.<Async, Final<Integer, Integer>>row().handler(state(0))
+        .handle(countedPrice(prices.of("a")))
         .map(Final::state);
     CompletableFuture<Integer> state = start(program, op -> seen.add(op.getClass().getSimpleName()));
     assertEquals(List.of("Get", "Put", "Await"), seen);
