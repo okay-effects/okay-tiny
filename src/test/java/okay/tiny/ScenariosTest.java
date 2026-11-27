@@ -17,20 +17,11 @@ import org.junit.jupiter.api.Test;
 
 /** What the kernel does, a scenario each: the programs and the handlers are Shop's. */
 class ScenariosTest {
-  sealed interface Level {
-    record Ask(Std.State<Integer> op) implements Level, Std.State.Of<Integer, Level> {}
-    Std.State.In<Integer, Level> state = Std.State.in(Ask::new);
-  }
+  interface Level { Std.State<Integer, Level> state = Std.State.of(Level.class); }
 
-  sealed interface Given {
-    record Ask(Std.Env<Integer> op) implements Given, Std.Env.Of<Integer, Given> {}
-    Std.Env.In<Integer, Given> env = Std.Env.in(Ask::new);
-  }
+  interface Given { Std.Env<Integer, Given> env = Std.Env.of(Given.class); }
 
-  sealed interface Said {
-    record Ask(Std.Emit<String> op) implements Said, Std.Emit.Of<String, Said> {}
-    Std.Emit.In<String, Said> emit = Std.Emit.in(Ask::new);
-  }
+  interface Said { Std.Emit<String, Said> emit = Std.Emit.of(Said.class); }
 
   final Map<String, Integer> left = Map.of("tea", 5, "cup", 1);
   final Cart good = new Cart("a@b.c", List.of(new Line("tea", 2), new Line("cup", 1)));

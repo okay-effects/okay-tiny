@@ -76,7 +76,8 @@ the Java stack, and its depth is in `rest`. Three things keep a move from costin
 
 - **`Pure`** — there is a value: give it to the steps.
 - **`FlatMap`, `Mapped`** — put the function on the steps, go into `first`.
-- **`Perform`, `Asking`** — find the nearest part whose handler's effect the operation is of, ask its `cases`
+- **`Perform`, `Asking`** — find the nearest part whose handler's effect the operation is of (the effect it
+  says, `of()`, where it says one; else the one its class is of), ask its `cases`
   for the clause. If it is an `answer`, there is a value at once and nothing moves: `Perform` gives it to the
   steps, `Asking` runs the program `next` makes of it. Otherwise the rest is taken (below).
 - **`Ensure`** — put a mark on the steps that holds `after`, go into the part.

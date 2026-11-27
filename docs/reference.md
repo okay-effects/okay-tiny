@@ -6,7 +6,7 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 
 | Type | What it is |
 |---|---|
-| `Op<A, F>` | an operation: `A` is the type of its answer, `F` its effect. A record implements it |
+| `Op<A, F>` | an operation: `A` is the type of its answer, `F` its effect. A record implements it. `of()`: the effect's class, said by a generic record of a template; none where the record is the effect's own |
 | `Comp<A, R>` | a program: `A` is what it gives, `R` the effects it may ask |
 | `Handler<F, A, B, R>` | a handler of the effect `F`: the part it is around gives `A`, it gives `B`, its clauses ask `R` |
 | `Clause<X, S, B, R>` | what a handler does for one operation: `(state, k) -> Comp<B, R>`; `X` is the operation's answer type |
@@ -67,10 +67,10 @@ handler there with `row()`.
 
 | Effect | Operations | Functions | Handlers |
 |---|---|---|---|
-| `State<S>` | `Get`, `Put` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)`: `Handler<F, A, Final<S, A>, R>` |
-| `Fail<E>` | itself: `Fail(error)` | `.with(error)`, of any type | `.option()`: `Optional<A>`; `.result()`: `Result<E, A>` |
-| `Emit<T>` | itself: `Emit(item)` | `.tell(item)` | `.told()`: `Told<T, A>` |
-| `Env<E>` | itself: `Env()` | `.ask()` | `.given(value)`: `A` |
+| `State<S, F>` | `Get`, `Put` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)`: `Handler<F, A, Final<S, A>, R>` |
+| `Fail<E, F>` | `Raise` | `.with(error)`, of any type | `.option()`: `Optional<A>`; `.result()`: `Result<E, A>` |
+| `Emit<T, F>` | `Tell` | `.tell(item)` | `.told()`: `Told<T, A>` |
+| `Env<E, F>` | `Ask` | `.ask()` | `.given(value)`: `A` |
 | `Choice` | `Of<X>` | `choose(options)` | `all()`: `List<A>` |
 | `Async` | `Await<X>` | `await(start)`, `awaitAll(starts)` | `blocking()`: `A`; `start(program)`, `start(program, see)`: runs a `Comp<A, Async>`, gives a `CompletableFuture<A>` |
 
@@ -86,15 +86,14 @@ handler there with `row()`.
 Items are any `Iterable`, read once into a list when the program is made. A body's row may be less than `R`.
 
 `Final<S, A>(state, value)`, `Told<X, A>(items, value)`, `Result<E, A>` = `Ok(value)` or `Failed(error)`.
-The first four are prototypes, not effects: the functions and handlers in their rows are those of an effect made
-of one, reached through it — `Count.state.get()`, `Count.state.from(0)`.
+The first four are templates: `F` is the effect said of one, a type of the application's —
 
-| Making an effect of a prototype `P` | |
-|---|---|
-| `sealed interface Count { .. }` | the effect: a type of its own, for the row |
-| `record Ask(P<T> op) implements Count, P.Of<T, Count> {}` | its one operation: it holds one of the prototype's |
-| `P.In<T, Count> name = P.in(Ask::new);` | the prototype as that effect: what is asked of it, and its handlers |
-| `Std.Of<P, F>` | what such a record implements: `op()` is the prototype's operation — an observer reads it there |
+```java
+interface Count { State<Integer, Count> state = State.of(Count.class); }
+```
+
+— and the functions and handlers in their rows are reached through what was made: `Count.state.get()`,
+`Count.state.from(0)`. An effect is said of a template once; a second `of` for the same class throws.
 
 ## What javac refuses
 

@@ -60,18 +60,15 @@ Optional<Order> o = run(Fx.<Optional<Order>>top().handler(stock(left)).handler(t
 | to see every operation | `run(program, op -> ..)`; or, for one effect, a handler that asks the operation again outside |
 | to close something | `ensuring(part, () -> ..)`: at the end, when the part is left, under an exception |
 
-`Std` has four prototypes — generic operations and what handles them — of which an application makes effects of
-its own, each a type:
+`Std` has four templates of effects; an application says an effect of its own of one, in a line, and it is a
+type — in a row as any other:
 
 ```java
-sealed interface Count {
-  record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
-  State.In<Integer, Count> state = State.in(Ask::new);
-}
+interface Count { State<Integer, Count> state = State.of(Count.class); }
 ```
 
-`State<S>` (`Count.state.get()`, `.put(s)`, `.update(f)`; handler `.from(initial)`), `Fail<E>` (`.with(error)`;
-`.option()`, `.result()`), `Emit<T>` (`.tell(item)`; `.told()`), `Env<E>` (`.ask()`; `.given(value)`). And two
+`State<S, F>` (`Count.state.get()`, `.put(s)`, `.update(f)`; handler `.from(initial)`), `Fail<E, F>` (`.with(error)`;
+`.option()`, `.result()`), `Emit<T, F>` (`.tell(item)`; `.told()`), `Env<E, F>` (`.ask()`; `.given(value)`). And two
 effects used as they are: `Choice`
 (`choose(options)`; `all()`), `Async` (`await(() -> stage)`, `awaitAll(starts)`; `blocking()` — the thread waits; or
 `start(program)` for a `Comp<A, Async>` — no thread waits, a `CompletableFuture<A>`).
@@ -112,9 +109,9 @@ before a `$` cannot change after it.
 - An effect interface has no generic supertype of its own; each record says `Op<Answer, Effect>`. Two effects
   that extended `Op<.., Self>` could never bound one row.
 - A handler is found by its effect's class, and a class has no type argument. So an effect with a type
-  argument is written as a prototype, and each use of it is an effect of its own made of the prototype — as
-  `Std`'s: never one generic effect handled by its class, where a handler of `State<String>` would answer
-  another's `State<Integer>`.
+  argument is written as a template, as `Std`'s are: generic records that say which effect they are of
+  (`Op.of()`), and each use an effect of its own, a type. Never one generic effect found by its class, where a
+  handler of `State<String>` would answer another's `State<Integer>`.
 - `ensuring`'s `after` is a `Runnable`: it asks no operation. Do not keep a `k` past its clause (a clause made with `keep` may:
   it is how `Std.start` goes on from a callback): a rest gone on
   with after its clause ended is closed twice.

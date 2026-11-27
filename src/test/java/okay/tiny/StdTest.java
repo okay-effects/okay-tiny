@@ -10,42 +10,21 @@ import org.junit.jupiter.api.Test;
 
 /** The usual effects under their handlers; and that the order of two handlers is the order of two monads. */
 class StdTest {
-  // The effects of this test, each made of one of Std's prototypes: a type, its record, and the prototype as it.
+  // The effects of this test, each said of one of Std's templates: a line.
 
-  sealed interface Count {
-    record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
-    State.In<Integer, Count> state = State.in(Ask::new);
-  }
+  interface Count { State<Integer, Count> state = State.of(Count.class); }
 
-  sealed interface Other {
-    record Ask(State<Integer> op) implements Other, State.Of<Integer, Other> {}
-    State.In<Integer, Other> state = State.in(Ask::new);
-  }
+  interface Other { State<Integer, Other> state = State.of(Other.class); }
 
-  sealed interface Steps {
-    record Ask(State<Long> op) implements Steps, State.Of<Long, Steps> {}
-    State.In<Long, Steps> state = State.in(Ask::new);
-  }
+  interface Steps { State<Long, Steps> state = State.of(Steps.class); }
 
-  sealed interface Note {
-    record Ask(State<String> op) implements Note, State.Of<String, Note> {}
-    State.In<String, Note> state = State.in(Ask::new);
-  }
+  interface Note { State<String, Note> state = State.of(Note.class); }
 
-  sealed interface Odd {
-    record Ask(Fail<String> op) implements Odd, Fail.Of<String, Odd> {}
-    Fail.In<String, Odd> fail = Fail.in(Ask::new);
-  }
+  interface Odd { Fail<String, Odd> fail = Fail.of(Odd.class); }
 
-  sealed interface Log {
-    record Ask(Emit<String> op) implements Log, Emit.Of<String, Log> {}
-    Emit.In<String, Log> emit = Emit.in(Ask::new);
-  }
+  interface Log { Emit<String, Log> emit = Emit.of(Log.class); }
 
-  sealed interface Given {
-    record Ask(Env<Integer> op) implements Given, Env.Of<Integer, Given> {}
-    Env.In<Integer, Given> env = Env.in(Ask::new);
-  }
+  interface Given { Env<Integer, Given> env = Env.of(Given.class); }
 
   static <R extends Count> Comp<String, R> counted() {
     return Count.state.update(n -> n + 1).flatMap(x -> Count.state.update(n -> n * 10))
@@ -223,7 +202,7 @@ class StdTest {
     assertEquals(false, run(StdTest.<Object>evenAsking(5_000_001)));
   }
 
-  // ---- each effect made of a prototype is a type of its own
+  // ---- each effect said of a template is a type of its own
 
   /** A method that knows nothing of its part's row puts a state of its own around the part, and uses it. */
   static <A, R> Comp<Final<String, A>, R> noted(Comp<A, R> part) {
@@ -254,5 +233,16 @@ class StdTest {
     assertEquals(new Final<>(1, new Final<>(10, 110)),
         run(Fx.<Final<Integer, Final<Integer, Integer>>>top().handler(Count.state.from(0))
             .handler(Other.state.from(0)).handle(both())));
+  }
+
+  interface Twice {}
+
+  /** An effect is said of a template once: a second saying, which could be of another type, is refused. */
+  @Test
+  void anEffectIsSaidOfATemplateOnce() {
+    State<Integer, Twice> first = State.of(Twice.class);
+    IllegalStateException refused =
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> Fail.of(Twice.class));
+    assertEquals(Twice.class.getName() + " is a state already", refused.getMessage());
   }
 }

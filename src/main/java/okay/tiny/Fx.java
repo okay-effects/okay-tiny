@@ -11,7 +11,13 @@ public final class Fx {
   private Fx() {}
 
   /** An operation is data: a record of a sealed interface, the effect F, that says the type of its answer, A. */
-  public interface Op<A, F> {}
+  public interface Op<A, F> {
+    /**
+     * The effect this operation is of, where it is not a record of that effect's own but a generic one, of a
+     * template of effects, made for F: then it says so, and its handler is found by that. None: by its class.
+     */
+    default Class<?> of() { return null; }
+  }
 
   /** A program is data: A is what it gives, R the effects it may ask. */
   public sealed interface Comp<A, R> {
@@ -161,7 +167,7 @@ public final class Fx {
   /** What a Handler is, with the state's type S, which Handler hides. */
   private record Fold<F, S, A, B, R>(Class<F> effect, S state, BiFunction<S, A, B> ret,
                                      Function<F, Case<F, S, B, R>> cases) implements Handler<F, A, B, R> {
-    /** The operation as one of this handler's effect: it is, the machine has just found the handler by that. */
+    /** The operation as one of this handler's effect: it is of it, the machine has just found the handler by that. */
     @SuppressWarnings("unchecked")
     private F of(Op<?, ?> op) { return (F) op; }
   }
@@ -522,9 +528,11 @@ public final class Fx {
       Op<X, ?> op = asks.op();
       asked = op;
       if (see != null) see.accept(op);
+      Class<?> of = op.of();                            // the effect it says it is of; none: its class says
       Around<?, Z> own = around;
       while (own instanceof In<?, ?, ?, ?, ?, ?, Z> part) {
-        if (part.handler.effect.isInstance(op)) return answer(part, asks, op, at, rest, around);
+        Class<?> effect = part.handler.effect;
+        if (of == null ? effect.isInstance(op) : effect == of) return answer(part, asks, op, at, rest, around);
         own = part.outer;
       }
       throw new IllegalStateException("no handler for " + op);

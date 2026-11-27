@@ -19,10 +19,7 @@ import org.junit.jupiter.api.Test;
 
 /** Asynchrony as an effect: one program, a handler that waits and one that does not. */
 class AsyncTest {
-  sealed interface Count {
-    record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
-    State.In<Integer, Count> state = State.in(Ask::new);
-  }
+  interface Count { State<Integer, Count> state = State.of(Count.class); }
 
   /** A service that answers later: each call is a stage the test ends when it likes. */
   static final class Prices {
@@ -164,9 +161,7 @@ class AsyncTest {
     Comp<Integer, Async> program = Fx.<Async, Final<Integer, Integer>>row().handler(Count.state.from(0))
         .handle(countedPrice(prices.of("a")))
         .map(Final::state);
-    // an operation of an effect made of a prototype is seen as what it holds: the prototype's operation
-    CompletableFuture<Integer> state = start(program, op ->
-        seen.add((op instanceof Of<?, ?> held ? held.op() : op).getClass().getSimpleName()));
+    CompletableFuture<Integer> state = start(program, op -> seen.add(op.getClass().getSimpleName()));
     assertEquals(List.of("Get", "Put", "Await"), seen);
     prices.pending.get(0).complete(5);
     assertEquals(6, state.join());

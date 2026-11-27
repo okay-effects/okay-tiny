@@ -11,20 +11,11 @@ import java.util.List;
 final class Programs {
   private Programs() {}
 
-  sealed interface Count {
-    record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
-    State.In<Integer, Count> state = State.in(Ask::new);
-  }
+  interface Count { State<Integer, Count> state = State.of(Count.class); }
 
-  sealed interface Steps {
-    record Ask(State<Long> op) implements Steps, State.Of<Long, Steps> {}
-    State.In<Long, Steps> state = State.in(Ask::new);
-  }
+  interface Steps { State<Long, Steps> state = State.of(Steps.class); }
 
-  sealed interface Log {
-    record Ask(Emit<String> op) implements Log, Emit.Of<String, Log> {}
-    Emit.In<String, Log> emit = Emit.in(Ask::new);
-  }
+  interface Log { Emit<String, Log> emit = Emit.of(Log.class); }
 
   sealed interface Stock {
     record Reserve(String sku, int qty) implements Stock, Op<Boolean, Stock> {}

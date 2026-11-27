@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 408 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 412 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -52,25 +52,24 @@ what the machine is at, `At<Z>`, over `Run<A, Y, Z>`, `Give<A, Y, Z>` and `Done<
   `Eff<?> & ..`, a `case` still does not refine `T`, and `Get<S> implements State<S, S>` cannot be matched. A
   record that names another effect than its own is caught where its effect's handler is written: the clause is
   of the other effect (`OperationOfAnotherFamily`).
-- **An effect with a type argument is a prototype, and its uses are effects of their own.** The class is all the
-  machine has of an effect: `State<Integer>` and `State<String>` are one to it. javac refuses the two in one
+- **An effect with a type argument is a template, and each use of it an effect of its own.** The class is all
+  the machine has of an effect: `State<Integer>` and `State<String>` are one to it. javac refuses the two in one
   row — *State cannot be inherited with different arguments* — but not where a row is hidden: a method generic
   in its part's row put a `State<String>` around the part, the part asked a `State<Integer>` meant for outside,
   and it was answered with a `String`: `ClassCastException`, in a program javac had passed. And no type
   argument — of the state, or a name beside it — can tell two of them apart in a row, for the same refusal
-  meets any generic supertype they share. So what tells them apart is a type of its own for each: an effect is
-  *made of* a prototype, by its type, one record that holds the prototype's operations, and the prototype as
-  that effect (`State.in(Ask::new)`). The record's class is what the machine finds the handler by, and its
-  constructor what ties the effect to the state's type for javac. Then two states of two types are two types
-  in a row, javac wants a handler of each, and a handler of one never sees an operation of the other.
-  The record's answer is an `Object`, and the prototype says its type by a cast, in the one place where an
-  operation is both made and handled: with the answer in the record's type — `Ask<X>(State<Integer, X>)`,
-  a constructor passed as a method generic in `X`, each operation giving its own clause — nothing was cast, and
-  the three lines an effect takes were too much to read.
-  Tried and taken back before that: a `Key<T>` that the operations and their handler shared — a value passed
-  at every use, checked when the program runs; and with it `pass()`, a clause by which a handler let an
-  operation go on to the next handler outside. Nothing needs it now: the family's TCK, whose handlers answer
-  only their own identity, says it with a clause that asks the operation again outside.
+  meets any generic supertype they share: an effect cannot be made of a template by `extends`.
+  So an effect is *said of* a template: `interface Count { State<Integer, Count> state = State.of(Count.class); }`.
+  The type is the application's own and has no supertype, so any two are in one row; the template's operations
+  are generic records that hold the effect's class and say it (`Op.of()`), and the machine finds a handler by
+  what an operation says it is of, where it says, and by its class where it does not. The type of the state is
+  javac's from the declaration — `State<Integer, Count>` — to every use; and an effect is said of a template
+  once, which is checked when it is said: a second, of another type, would be the first hole again.
+  Tried and taken back on the way: a `Key<T>` that operations and handler shared, with `pass()`, a clause by
+  which a handler let an operation go on outside — a value at every use, checked when the program runs; an
+  effect's own record that held a template's operation, with the answer in its type (a constructor passed as
+  a method generic in the answer, each operation giving its own clause) or with an `Object` for it and a cast
+  — three lines for an effect, and too much to read.
 - **One effect of a class in a row.** `<R extends State<Integer> & State<String>>` is refused by javac, which is
   as well: a handler is found by the effect's class.
 - **Completeness is javac's.** A handler is `op -> switch (op) { .. }` over a sealed interface, and a `switch`
@@ -148,7 +147,7 @@ a stack of steps: steps are `Rest<A, Y>`, from a value of `A` to the value of th
 | the effect's class read from an empty varargs array | see above |
 | the machine as one loop over variables of type `Object` — the program, the value, the steps, the parts — with casts where a hidden type was opened | a trampoline of typed moves over `At<Z>`. A state costs the same or less; an operation answered in place 6.7 ns, not 5.2; 118 lines more |
 | the typed moves calling each other, the three put down in fields every 32 calls | a call stack as the mechanism; the trampoline needs no fields and reads nothing on trust |
-| `Std`'s state, failure, stream and given as generic effects found by their class — `get()`, `state(0)`, `option(String.class)` — and then asked with a `Key<T>` — `get(COUNT)`, `state(COUNT, 0)` | prototypes, and effects made of them (section 2). The first was unsound where a row is hidden; the second passed a value at every use and was checked only when the program ran |
+| `Std`'s state, failure, stream and given as generic effects found by their class — `get()`, `state(0)`, `option(String.class)` | templates, and effects said of them (section 2): found by class alone, a handler of one type answered another's |
 | a clause as one record for its four kinds (`answer`, `on`, `keep`, `leave`), with fields left empty and a flag | a sealed type of four records, each with what it needs: `leave` has no operation and no answer's type. An operation answered in place costs the same; one whose clause takes the rest, the same to 2 ns more |
 | a step as one record with flags (`mapped`) and a mark of type `Object`; `Case` and `Handler` as classes with `Object` fields | each is a sealed type over records now, the hidden type an existential inside: fewer casts, and the step 2 to 6 ns an operation faster |
 | the states of the handlers in an array by the depth of their parts, the innermost in a variable of the loop; copied before a write once a rest had it | each state is in its part's record, with its handler: no array, no depth, no copying. 22 lines less, and a state outermost of seven costs 16.4 ns, not 19.4 |

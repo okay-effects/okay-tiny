@@ -416,18 +416,15 @@ twice.
 
 Four of them have a type argument — a state of `S`, a failure of `E`, a stream of `T`, something given of
 `E` — and the machine finds a handler by the class of its effect, which has none: a `State<Integer>` and a
-`State<String>` would be one effect to it. So these four are **prototypes** of effects: generic operations, and
-what handles them. An application makes effects of its own of them, each a type:
+`State<String>` would be one effect to it. So these four are **templates** of effects, and an application says
+an effect of its own of one — a type, in a line:
 
 ```java
-sealed interface Count {
-  record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
-  State.In<Integer, Count> state = State.in(Ask::new);
-}
+interface Count { State<Integer, Count> state = State.of(Count.class); }
 ```
 
-Three lines: the type, for the row; its one record, which holds an operation of the prototype; and the
-prototype as that effect. It is asked and handled through the last:
+`Count` is the effect, and `Count.state` the state of `Integer` that it is: what is asked of it, and its
+handler.
 
 ```java
 static <R extends Count> Comp<String, R> counted() {
@@ -439,24 +436,26 @@ run(Fx.<Final<Integer, String>>top().handler(Count.state.from(0)).handle(counted
 // Final[state=10, value=at 10]
 ```
 
-| Prototype | An effect made of it asks | Its handlers | The part gives |
+| Template | An effect said of it asks | Its handlers | The part gives |
 |---|---|---|---|
-| `State<S>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>` |
-| `Fail<E>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`, `Result<E, A>` |
-| `Emit<T>` | `.tell(item)` | `.told()` | `Told<T, A>` |
-| `Env<E>` | `.ask()` | `.given(value)` | `A` |
+| `State<S, F>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>` |
+| `Fail<E, F>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`, `Result<E, A>` |
+| `Emit<T, F>` | `.tell(item)` | `.told()` | `Told<T, A>` |
+| `Env<E, F>` | `.ask()` | `.given(value)` | `A` |
 
-`Count` is an effect like one written by hand. javac wants its handler; two states of two types are two types
-in one row, `<R extends Count & Note>` (`StdTest.twoStatesOfOneType`); nothing is said at the start of a chain,
-since the types are the effect's; and a handler of one never sees an operation of another — a state put by a
-method around a part it knows nothing of does not answer that part's own
-(`StdTest.aStatePutAroundAPartDoesNotAnswerThePartsOwn`). An observer sees the record; what it holds is
-`op()`, of `Std.Of`.
+`Count` is an effect: it is in a row as any other. javac wants its handler; two states of two types are two
+types in one row, `<R extends Count & Note>` (`StdTest.twoStatesOfOneType`); nothing is said at the start of a
+chain, since the types are the effect's; and a handler of one never sees an operation of another — a state put
+by a method around a part it knows nothing of does not answer that part's own
+(`StdTest.aStatePutAroundAPartDoesNotAnswerThePartsOwn`).
 
-A prototype of your own is written the same way: its operations, generic; `Of`, what an effect's record
-implements; and `In`, which makes those operations into the effect's and has its handlers. The record's answer
-is an `Object`: which operation it holds, and so what it is answered with, is known where it is asked and where
-it is handled — both in `In` — and said there by a cast. Outside `In` everything has its type.
+An effect is said of a template once: a second saying — `Fail.of(Count.class)` — is refused when it is made
+(`anEffectIsSaidOfATemplateOnce`), for it could be of another type.
+
+A template of your own is written as these are: a class `P<T, F>` with the effect's class; its operations,
+generic records that hold that class as `of` — which is how an operation says which effect it is of, and how
+the machine finds its handler; the functions that ask them; and the handlers, made with `folding` for that
+class.
 
 Two effects have no type argument and are used as they are:
 
@@ -587,7 +586,7 @@ Three things a test can check that a mock cannot easily:
 - A row of several effects cannot be written as a type argument — `Fx.<Stock & Clock, A>row()` is not Java.
   Put the handlers in a method whose type variable is that row: `<R extends Stock & Clock>`.
 - A handler is found by its effect's class, and a class has no type argument: an effect with one is written as
-  a prototype, and each use of it is an effect of its own, as `Std`'s are (section 11).
+  a template, and each use of it is an effect of its own, as `Std`'s are (section 11).
 - Mutable state captured by a handler is shared by every way of a rest gone on with twice. The handler's own
   state — the second argument of `folding` — is not.
 - Do not keep a `k` past its clause — unless the clause is made with `keep`, which is for that

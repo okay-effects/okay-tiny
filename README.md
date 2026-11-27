@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 408 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 412 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 
@@ -89,18 +89,14 @@ a value, never replayed). Its state is a value too: a rest gone on with twice ha
 
 ## The usual effects
 
-[`Std.java`](src/main/java/okay/tiny/Std.java), 259 lines beside the kernel and written only with what it gives:
+[`Std.java`](src/main/java/okay/tiny/Std.java), 231 lines beside the kernel and written only with what it gives:
 each effect with the handler that is its monad.
 
-A state, a failure, something told and something given are **prototypes**: generic operations and what handles
-them. An application makes effects of its own of them — a type for the row, one record, and the prototype as
-that effect:
+A state, a failure, something told and something given are **templates** of effects. An application says an
+effect of its own of one, in a line:
 
 ```java
-sealed interface Count {
-  record Ask(State<Integer> op) implements Count, State.Of<Integer, Count> {}
-  State.In<Integer, Count> state = State.in(Ask::new);
-}
+interface Count { State<Integer, Count> state = State.of(Count.class); }
 ```
 
 ```java
@@ -111,15 +107,15 @@ static <R extends Count> Comp<String, R> counted() {
 run(Fx.<Final<Integer, String>>top().handler(Count.state.from(0)).handle(counted()));
 ```
 
-| Prototype | An effect made of it asks | Its handlers | The part gives |
+| Template | An effect said of it asks | Its handlers | The part gives |
 |---|---|---|---|
-| `State<S>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>`: the last state and the value |
-| `Fail<E>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`; `Result<E, A>` |
-| `Emit<T>` | `.tell(item)` | `.told()` | `Told<T, A>`: what was told and the value |
-| `Env<E>` | `.ask()` | `.given(value)` | `A` |
+| `State<S, F>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>`: the last state and the value |
+| `Fail<E, F>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`; `Result<E, A>` |
+| `Emit<T, F>` | `.tell(item)` | `.told()` | `Told<T, A>`: what was told and the value |
+| `Env<E, F>` | `.ask()` | `.given(value)` | `A` |
 
-`Count` is an effect like one written by hand: javac wants its handler, two states of two types are two types
-in a row, and a handler of one never sees an operation of the other. Two effects have no type argument and are
+`Count` is an effect: it is in a row as any other, javac wants its handler, two states of two types are two
+types, and a handler of one never sees an operation of the other. Two effects have no type argument and are
 used as they are:
 
 | Effect | Asked with | Handler | The part gives |
