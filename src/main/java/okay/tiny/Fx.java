@@ -73,17 +73,26 @@ public final class Fx {
    */
   public sealed interface Case<F, S, B, R> {}
 
-  /**
-   * What a Case is, with the answer's type X, which Case hides. op: none for any operation of the effect (leave).
-   * clause: none where the operation is only answered, with `answer`. kept: the rest is not closed when the
-   * clause ends.
-   */
-  private record Of<X, F, S, B, R>(Op<X, F> op, Clause<X, S, B, R> clause, X answer, boolean kept)
-      implements Case<F, S, B, R> {}
+  // What a Case is: one of four, each with what it needs and no more. X is the answer's type, which Case hides.
+
+  /** answer(op, value): answered where it is asked. */
+  private record Answer<X, F, S, B, R>(Op<X, F> op, X answer) implements Case<F, S, B, R> {}
+
+  /** The others take the rest of the part off, as k. */
+  private sealed interface Takes<F, S, B, R> extends Case<F, S, B, R> {}
+
+  /** on(op, clause): when the clause ends, a rest it did not go on with was left, and is closed. */
+  private record On<X, F, S, B, R>(Op<X, F> op, Clause<X, S, B, R> clause) implements Takes<F, S, B, R> {}
+
+  /** keep(op, clause): the rest is the clause's to go on with later; nothing is closed when the clause ends. */
+  private record Keep<X, F, S, B, R>(Op<X, F> op, Clause<X, S, B, R> clause) implements Takes<F, S, B, R> {}
+
+  /** leave(value): of any operation of the effect, so with no answer's type; the rest is left. */
+  private record Leave<F, S, B, R>(B value) implements Takes<F, S, B, R> {}
 
   /** The clause for the operation matched: the type of its answer is the operation's own. */
   public static <X, F, S, B, R> Case<F, S, B, R> on(Op<X, F> op, Clause<X, S, B, R> clause) {
-    return new Of<>(Objects.requireNonNull(op), clause, null, false);
+    return new On<>(Objects.requireNonNull(op), clause);
   }
 
   /**
@@ -92,12 +101,12 @@ public final class Fx {
    * keeps it goes on with it, or what it was to close is never closed.
    */
   public static <X, F, S, B, R> Case<F, S, B, R> keep(Op<X, F> op, Clause<X, S, B, R> clause) {
-    return new Of<>(Objects.requireNonNull(op), clause, null, true);
+    return new Keep<>(Objects.requireNonNull(op), clause);
   }
 
   /** The usual clause, on(op, (s, k) -> k.apply(answer, s)): answered where it is asked, nothing taken off. */
   public static <X, F, S, B, R> Case<F, S, B, R> answer(Op<X, F> op, X answer) {
-    return new Of<>(Objects.requireNonNull(op), null, answer, false);
+    return new Answer<>(Objects.requireNonNull(op), answer);
   }
 
   /**
@@ -127,7 +136,7 @@ public final class Fx {
 
   /** A clause for any operation of the effect, which can only leave the part: with this value. */
   public static <F, S, B, R> Case<F, S, B, R> leave(B value) {
-    return new Of<Object, F, S, B, R>(null, (state, k) -> pure(value), null, false);
+    return new Leave<>(value);
   }
 
   /**
@@ -256,7 +265,7 @@ public final class Fx {
     Object state = null;                  // the state of that part's handler; and of those around it,
     Object[] states = {};                 //   each at its part's depth: an array never changed once it is shared,
     Object[] taken = null;                //   and written in place unless it is the one a rest was taken off with
-    Object asked = null;                  // the operation asked last
+    Op<?, ?> asked = null;                // the operation asked last
     try {
       turn: while (true) {
         Object value;
@@ -287,27 +296,30 @@ public final class Fx {
             continue;
           }
           case Perform<?, ?> p -> {
-            Object op = asked = p.op();
-            if (see != null) see.accept(p.op());
+            Op<?, ?> op = asked = p.op();
+            if (see != null) see.accept(op);
             Around own = around;
             while (own != null && !own.handler.effect.isInstance(op)) own = own.outer;
             if (own == null) throw new IllegalStateException("no handler for " + op);
-            var clause = (Of<Object, Object, Object, Object, Object>) own.handler.cases.apply(op);
-            if (clause.op != null && clause.op != op) {
-              throw new IllegalStateException("a clause made for " + clause.op + ", asked was " + op);
+            switch (own.handler.cases.apply(op)) {
+              case Answer<?, Object, Object, Object, Object> answered -> value = made(answered.op, op, answered.answer);
+              case Takes<Object, Object, Object, Object> takes -> {   // the rest, to the end of the handler's part
+                K<Object, Object, Object, Object> k = new K<>(rest, around, own, states, state);
+                taken = states;
+                Object its = own == around ? state : states[own.depth];
+                // the clause is a program of what is around that part; under it, a mark: was the rest gone on with
+                rest = takes instanceof Keep ? own.rest : new Taken(k, own.rest);
+                around = own.outer;
+                if (around != null) state = states[around.depth];
+                now = switch (takes) {
+                  case On<?, Object, Object, Object, Object> on -> made(on.op, op, erased(on.clause)).on(its, k);
+                  case Keep<?, Object, Object, Object, Object> keep ->
+                      made(keep.op, op, erased(keep.clause)).on(its, k);
+                  case Leave<Object, Object, Object, Object> leave -> new Pure<>(leave.value);
+                };
+                continue turn;
+              }
             }
-            if (clause.clause != null) {                // the rest, to the end of the handler's part, is taken off
-              K<Object, Object, Object, Object> k = new K<>(rest, around, own, states, state);
-              taken = states;
-              Object its = own == around ? state : states[own.depth];
-              // the clause is a program of what is around that part; under it, a mark: was the rest gone on with
-              rest = clause.kept ? own.rest : new Taken(k, own.rest);
-              around = own.outer;
-              if (around != null) state = states[around.depth];
-              now = clause.clause.on(its, k);
-              continue;
-            }
-            value = clause.answer;
           }
           // k.apply(answer, next): the parts taken off with the rest go back on top of what is run now.
           //
@@ -381,6 +393,18 @@ public final class Fx {
       failed(thrown, asked, rest, around);
       throw thrown;
     }
+  }
+
+  /** What a case holds, for the operation asked: the case was made for that one, whose answer the rest takes. */
+  private static <T> T made(Object made, Object asked, T held) {
+    if (made != asked) throw new IllegalStateException("a clause made for " + made + ", asked was " + asked);
+    return held;
+  }
+
+  /** A clause as the loop goes on with it: the answer's type, which only its case knew, is the loop's Object. */
+  @SuppressWarnings("unchecked")
+  private static Clause<Object, Object, Object, Object> erased(Clause<?, Object, Object, Object> clause) {
+    return (Clause<Object, Object, Object, Object>) clause;
   }
 
   /** Where it failed is added to the exception, and every part still open is closed, the innermost first. */

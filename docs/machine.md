@@ -122,6 +122,6 @@ exception on, unchanged.
   a function of a program of any type; the result of `handle`; and the loop. The loop is where the types that
   `Case`, `Handler` and the nodes hide are opened: its registers — `value`, `state`, `states` — hold what each
   step, in its turn, has a type for, and a variable of a Java loop has one type. Nothing else is erased: the
-  nodes, a clause (`Case` over `Of`), a handler (`Handler` over `Fold`) and a step are typed. What guards the
+  nodes, a clause (`Case` over its four kinds), a handler (`Handler` over `Fold`) and a step are typed. What guards the
   loop is `on` (the answer type is the operation's), the two sealed types, and the test that a clause was made
   for the operation asked.

@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 275 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 288 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -29,8 +29,8 @@ found again.
 
 Nothing is weakly typed where a type exists. What has several kinds is a sealed type of records, one for each
 kind — the nodes of a program, the steps of the machine. What must hide a type from the outside hides it as an
-existential: a sealed interface without that type, over a private record with it — `Case` over `Of<X, ..>` (the
-answer's type), `Handler` over `Fold<.., S, ..>` (the state's). Only the registers of the machine's loop are
+existential: a sealed interface without that type, over private records with it — `Case` over `Answer<X, ..>`,
+`On<X, ..>`, `Keep<X, ..>` and `Leave` (the answer's type), `Handler` over `Fold<.., S, ..>` (the state's). Only the registers of the machine's loop are
 `Object`, and `docs/machine.md` says why.
 
 ## 2. What Java forced
@@ -114,6 +114,7 @@ One loop. The rest of the program is a stack of parts — one for each handler i
 | a block of named answers asked in rounds (`plan`) | it lived on sets of operations |
 | the state in the stack's records | a handler with a state outside six others cost 57 ns an operation, not 30 |
 | the effect's class read from an empty varargs array | see above |
+| a clause as one record for its four kinds (`answer`, `on`, `keep`, `leave`), with fields left empty and a flag | a sealed type of four records, each with what it needs: `leave` has no operation and no answer's type. An operation answered in place costs the same; one whose clause takes the rest, the same to 2 ns more |
 | a step as one record with flags (`mapped`) and a mark of type `Object`; `Case` and `Handler` as classes with `Object` fields | each is a sealed type over records now, the hidden type an existential inside: fewer casts, and the step 2 to 6 ns an operation faster |
 | in a rest put back, always a copy of the states with those inside copied in — without the case where nothing around has changed, which is one `clone` | a state outermost of three cost 36 ns an operation, not 30 |
 
