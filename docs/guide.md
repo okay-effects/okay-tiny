@@ -449,13 +449,15 @@ chain, since the types are the effect's; and a handler of one never sees an oper
 by a method around a part it knows nothing of does not answer that part's own
 (`StdTest.aStatePutAroundAPartDoesNotAnswerThePartsOwn`).
 
-An effect is said of one template, once: two sayings for one class, of two types, would be one effect to the
-machine.
+What tells one such effect from another is the object that was made: `Count.state` is in every operation it
+asks, and its handler is found by it. So a template said twice for one class is two effects, which javac takes
+for one: the handler of one does not answer the other (`StdTest.aTemplateSaidTwiceForOneClassIsTwoEffects`).
+Say it once, as a constant of the effect's type.
 
-A template of your own is written as these are: a class `P<T, F>` with the effect's class; its operations,
-generic records that hold that class as `of` — which is how an operation says which effect it is of, and how
-the machine finds its handler; the functions that ask them; and the handlers, made with `folding` for that
-class.
+A template of your own is written as these are: a class `P<T, F>` that has the effect's class; its operations,
+generic records that hold the template as `of` — which is how an operation says what it is of; the functions
+that ask them; and the handlers, made with `folding` for that class and found by the template: `by(this,
+folding(..))`.
 
 Two effects have no type argument and are used as they are:
 

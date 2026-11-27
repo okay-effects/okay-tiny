@@ -35,10 +35,11 @@ public final class Std {
   //
   // Count is an effect: it is in a row as any other, javac wants its handler, and two states of two types are two
   // types. It is asked and handled through what was made: Count.state.get(), Count.state.put(1),
-  // Count.state.from(0). A template's operations are generic records, and each says which effect it is of
-  // (Op.of): so the machine finds Count's handler for Count's, whatever other state is in force.
+  // Count.state.from(0). A template's operations are generic records, and each says what it is of (Op.of): the
+  // template as it was said for Count, Count.state — the same object in the operation and in the handler made of
+  // it. So the machine finds Count's handler for Count's operations, whatever other state is in force.
 
-  /** An operation of F as one of the template that F was said of: the machine found the handler by F. */
+  /** An operation of F as one of the template that F was said of: the machine found the handler by that. */
   @SuppressWarnings("unchecked")
   private static <T> T asked(Object op) { return (T) op; }
 
@@ -47,8 +48,8 @@ public final class Std {
   /** A state of S, as the effect F. */
   public static final class State<S, F> {
     private sealed interface Asked<S, F> {}
-    public record Get<S, F>(Class<F> of) implements Asked<S, F>, Op<S, F> {}
-    public record Put<S, F>(Class<F> of, S state) implements Asked<S, F>, Op<Void, F> {}
+    public record Get<S, F>(State<S, F> of) implements Asked<S, F>, Op<S, F> {}
+    public record Put<S, F>(State<S, F> of, S state) implements Asked<S, F>, Op<Void, F> {}
 
     private final Class<F> effect;
 
@@ -56,9 +57,11 @@ public final class Std {
 
     public static <S, F> State<S, F> of(Class<F> effect) { return new State<>(effect); }
 
-    public <R extends F> Comp<S, R> get() { return perform(new Get<>(effect)); }
+    @Override public String toString() { return effect.getSimpleName(); }
 
-    public <R extends F> Comp<Void, R> put(S state) { return perform(new Put<>(effect, state)); }
+    public <R extends F> Comp<S, R> get() { return perform(new Get<>(this)); }
+
+    public <R extends F> Comp<Void, R> put(S state) { return perform(new Put<>(this, state)); }
 
     public <R extends F> Comp<Void, R> update(Function<S, S> f) {
       return this.<R>get().flatMap(s -> put(f.apply(s)));
@@ -66,10 +69,10 @@ public final class Std {
 
     /** Its handler: the part is run from this state, and gives its value with the state it ended in. */
     public <A, R> Handler<F, A, Final<S, A>, R> from(S initial) {
-      return folding(effect, initial, Final::new, op -> switch (Std.<Asked<S, F>>asked(op)) {
+      return by(this, folding(effect, initial, Final::new, op -> switch (Std.<Asked<S, F>>asked(op)) {
         case Get<S, F> get -> on(get, (s, k) -> k.apply(s, s));
         case Put<S, F> put -> on(put, (s, k) -> k.apply(null, put.state()));
-      });
+      }));
     }
   }
 
@@ -80,7 +83,7 @@ public final class Std {
 
   /** A failure of E, as the effect F. */
   public static final class Fail<E, F> {
-    public record Raise<E, F>(Class<F> of, E error) implements Op<Void, F> {}
+    public record Raise<E, F>(Fail<E, F> of, E error) implements Op<Void, F> {}
 
     private final Class<F> effect;
 
@@ -88,18 +91,20 @@ public final class Std {
 
     public static <E, F> Fail<E, F> of(Class<F> effect) { return new Fail<>(effect); }
 
+    @Override public String toString() { return effect.getSimpleName(); }
+
     /** Of any type: its answer never comes. */
     public <T, R extends F> Comp<T, R> with(E error) {
-      return Fx.<Void, F, R>perform(new Raise<>(effect, error)).map(never -> null);
+      return Fx.<Void, F, R>perform(new Raise<>(this, error)).map(never -> null);
     }
 
     public <A, R> Handler<F, A, Optional<A>, R> option() {
-      return folding(effect, null, (s, a) -> Optional.of(a), op -> leave(Optional.empty()));
+      return by(this, folding(effect, null, (s, a) -> Optional.of(a), op -> leave(Optional.empty())));
     }
 
     public <A, R> Handler<F, A, Result<E, A>, R> result() {
-      return folding(effect, null, (s, a) -> new Result.Ok<>(a),
-          op -> leave(new Result.Failed<>(Std.<Raise<E, F>>asked(op).error())));
+      return by(this, folding(effect, null, (s, a) -> new Result.Ok<>(a),
+          op -> leave(new Result.Failed<>(Std.<Raise<E, F>>asked(op).error()))));
     }
   }
 
@@ -112,7 +117,7 @@ public final class Std {
 
   /** A stream of T, as the effect F. */
   public static final class Emit<T, F> {
-    public record Tell<T, F>(Class<F> of, T item) implements Op<Void, F> {}
+    public record Tell<T, F>(Emit<T, F> of, T item) implements Op<Void, F> {}
 
     private final Class<F> effect;
 
@@ -120,14 +125,16 @@ public final class Std {
 
     public static <T, F> Emit<T, F> of(Class<F> effect) { return new Emit<>(effect); }
 
-    public <R extends F> Comp<Void, R> tell(T item) { return perform(new Tell<>(effect, item)); }
+    @Override public String toString() { return effect.getSimpleName(); }
+
+    public <R extends F> Comp<Void, R> tell(T item) { return perform(new Tell<>(this, item)); }
 
     /** Its handler: the part's value, with what it told. */
     public <A, R> Handler<F, A, Told<T, A>, R> told() {
-      return folding(effect, List.<T>of(), Told::new, op -> {
+      return by(this, folding(effect, List.<T>of(), Told::new, op -> {
         Tell<T, F> tell = asked(op);
         return on(tell, (items, k) -> k.apply(null, plus(items, tell.item())));
-      });
+      }));
     }
   }
 
@@ -138,7 +145,7 @@ public final class Std {
 
   /** Something given, an E, as the effect F. */
   public static final class Env<E, F> {
-    public record Ask<E, F>(Class<F> of) implements Op<E, F> {}
+    public record Ask<E, F>(Env<E, F> of) implements Op<E, F> {}
 
     private final Class<F> effect;
 
@@ -146,11 +153,13 @@ public final class Std {
 
     public static <E, F> Env<E, F> of(Class<F> effect) { return new Env<>(effect); }
 
-    public <R extends F> Comp<E, R> ask() { return perform(new Ask<>(effect)); }
+    @Override public String toString() { return effect.getSimpleName(); }
+
+    public <R extends F> Comp<E, R> ask() { return perform(new Ask<>(this)); }
 
     /** Its handler: every ask is answered with this. */
     public <A, R> Handler<F, A, A, R> given(E value) {
-      return handling(effect, op -> answer(Std.<Ask<E, F>>asked(op), value));
+      return by(this, handling(effect, op -> answer(Std.<Ask<E, F>>asked(op), value)));
     }
   }
 

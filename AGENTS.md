@@ -109,8 +109,8 @@ before a `$` cannot change after it.
 - An effect interface has no generic supertype of its own; each record says `Op<Answer, Effect>`. Two effects
   that extended `Op<.., Self>` could never bound one row.
 - A handler is found by its effect's class, and a class has no type argument. So an effect with a type
-  argument is written as a template, as `Std`'s are: generic records that say which effect they are of
-  (`Op.of()`), and each use an effect of its own, a type. Never one generic effect found by its class, where a
+  argument is written as a template, as `Std`'s are: generic records that say what they are of (`Op.of()`: the
+  template as said for one effect), handlers found by that (`by`), and each use an effect of its own, a type. Never one generic effect found by its class, where a
   handler of `State<String>` would answer another's `State<Integer>`.
 - `ensuring`'s `after` is a `Runnable`: it asks no operation. Do not keep a `k` past its clause (a clause made with `keep` may:
   it is how `Std.start` goes on from a callback): a rest gone on

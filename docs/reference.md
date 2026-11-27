@@ -6,7 +6,7 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 
 | Type | What it is |
 |---|---|
-| `Op<A, F>` | an operation: `A` is the type of its answer, `F` its effect. A record implements it. `of()`: the effect's class, said by a generic record of a template; none where the record is the effect's own |
+| `Op<A, F>` | an operation: `A` is the type of its answer, `F` its effect. A record implements it. `of()`: what a generic record of a template is of — the template as it was said for one effect, an object; none where the record is the effect's own |
 | `Comp<A, R>` | a program: `A` is what it gives, `R` the effects it may ask |
 | `Handler<F, A, B, R>` | a handler of the effect `F`: the part it is around gives `A`, it gives `B`, its clauses ask `R` |
 | `Clause<X, S, B, R>` | what a handler does for one operation: `(state, k) -> Comp<B, R>`; `X` is the operation's answer type |
@@ -38,6 +38,7 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 | `on(op, (state, k) -> ..)` | the clause for the operation matched; `k.apply(answer, nextState)` goes on with the rest |
 | `answer(op, value)` | `on(op, (s, k) -> k.apply(value, s))`, answered where it is asked |
 | `leave(value)` | a clause for any operation of the effect: the part is left, the handler gives `value` |
+| `by(of, handler)` | the same handler, found by the object `of` that its operations say (`Op.of()`), not by the class of its effect: for a template |
 | `keep(op, (state, k) -> ..)` | `on` for a clause that keeps `k` to go on with it after the clause has ended, in a run of its own: the rest is not closed when the clause ends |
 
 A clause may: apply `k` once (answer); not apply it (the part is left with the clause's own value, and `ret` is
@@ -93,7 +94,7 @@ interface Count { State<Integer, Count> state = State.of(Count.class); }
 ```
 
 — and the functions and handlers in their rows are reached through what was made: `Count.state.get()`,
-`Count.state.from(0)`. An effect is said of one template, once.
+`Count.state.from(0)`. The object made is what tells the effect from another: say it once, as a constant.
 
 ## What javac refuses
 

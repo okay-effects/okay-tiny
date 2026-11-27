@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 412 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 421 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -61,11 +61,13 @@ what the machine is at, `At<Z>`, over `Run<A, Y, Z>`, `Give<A, Y, Z>` and `Done<
   meets any generic supertype they share: an effect cannot be made of a template by `extends`.
   So an effect is *said of* a template: `interface Count { State<Integer, Count> state = State.of(Count.class); }`.
   The type is the application's own and has no supertype, so any two are in one row; the template's operations
-  are generic records that hold the effect's class and say it (`Op.of()`), and the machine finds a handler by
-  what an operation says it is of, where it says, and by its class where it does not. The type of the state is
-  javac's from the declaration — `State<Integer, Count>` — to every use. An effect is to be said of one
-  template, once: that is not checked — a second saying for the same class, of another type, would be the
-  first hole again, and it takes writing the line twice.
+  are generic records that hold what was made — `Count.state` — and say it (`Op.of()`), and the machine finds a
+  handler by what an operation says it is of, where it says, and by its class where it does not. The type of
+  the state is javac's from the declaration — `State<Integer, Count>` — to every use, and it is the object's:
+  an operation and its handler are of one object, so of one type. A template said twice for one class is two
+  effects, and the handler of one does not answer the other: what javac cannot see there is a missing handler,
+  not a wrong type. (First the operations held the effect's class, and two sayings of two types were one
+  effect to the machine; a table of the classes said, kept to refuse the second, was taken out.)
   Tried and taken back on the way: a `Key<T>` that operations and handler shared, with `pass()`, a clause by
   which a handler let an operation go on outside — a value at every use, checked when the program runs; an
   effect's own record that held a template's operation, with the answer in its type (a constructor passed as

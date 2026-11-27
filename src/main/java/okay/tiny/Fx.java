@@ -13,10 +13,11 @@ public final class Fx {
   /** An operation is data: a record of a sealed interface, the effect F, that says the type of its answer, A. */
   public interface Op<A, F> {
     /**
-     * The effect this operation is of, where it is not a record of that effect's own but a generic one, of a
-     * template of effects, made for F: then it says so, and its handler is found by that. None: by its class.
+     * What this operation is of, where it is not a record of an effect's own but a generic one, of a template of
+     * effects: the template as it was said for one effect — an object, the same in the operation and in the
+     * handler made of it, which is how that handler is found. None: the handler is found by the operation's class.
      */
-    default Class<?> of() { return null; }
+    default Object of() { return null; }
   }
 
   /** A program is data: A is what it gives, R the effects it may ask. */
@@ -165,11 +166,15 @@ public final class Fx {
   public sealed interface Handler<F, A, B, R> {}
 
   /** What a Handler is, with the state's type S, which Handler hides. */
-  private record Fold<F, S, A, B, R>(Class<F> effect, S state, BiFunction<S, A, B> ret,
+  private record Fold<F, S, A, B, R>(Class<F> effect, Object of, S state, BiFunction<S, A, B> ret,
                                      Function<F, Case<F, S, B, R>> cases) implements Handler<F, A, B, R> {
     /** The operation as one of this handler's effect: it is of it, the machine has just found the handler by that. */
     @SuppressWarnings("unchecked")
-    private F of(Op<?, ?> op) { return (F) op; }
+    private F own(Op<?, ?> op) { return (F) op; }
+
+    private Handler<F, A, B, R> by(Object of) {
+      return new Fold<>(effect, Objects.requireNonNull(of, "of"), state, ret, cases);
+    }
   }
 
   /**
@@ -178,8 +183,18 @@ public final class Fx {
    */
   public static <F, S, A, B, R> Handler<F, A, B, R> folding(Class<F> effect, S state, BiFunction<S, A, B> ret,
                                                             Function<F, Case<F, S, B, R>> cases) {
-    return new Fold<>(Objects.requireNonNull(effect, "the effect's class"), state,
+    return new Fold<>(Objects.requireNonNull(effect, "the effect's class"), null, state,
         Objects.requireNonNull(ret, "ret"), Objects.requireNonNull(cases, "the clauses"));
+  }
+
+  /**
+   * The same handler, of the operations that say they are of `of` (Op.of): those of a template of effects, said for
+   * the effect F. It is found by that object, not by the class of its effect.
+   */
+  public static <F, A, B, R> Handler<F, A, B, R> by(Object of, Handler<F, A, B, R> handler) {
+    return switch (handler) {
+      case Fold<F, ?, A, B, R> fold -> fold.by(of);
+    };
   }
 
   /** A handler with no state that gives what its part gives: handling(Effect.class, op -> switch (op) { .. }). */
@@ -528,11 +543,12 @@ public final class Fx {
       Op<X, ?> op = asks.op();
       asked = op;
       if (see != null) see.accept(op);
-      Class<?> of = op.of();                            // the effect it says it is of; none: its class says
+      Object of = op.of();                              // what it says it is of; none: its class says
       Around<?, Z> own = around;
       while (own instanceof In<?, ?, ?, ?, ?, ?, Z> part) {
-        Class<?> effect = part.handler.effect;
-        if (of == null ? effect.isInstance(op) : effect == of) return answer(part, asks, op, at, rest, around);
+        if (of == null ? part.handler.effect.isInstance(op) && part.handler.of == null : part.handler.of == of) {
+          return answer(part, asks, op, at, rest, around);
+        }
         own = part.outer;
       }
       throw new IllegalStateException("no handler for " + op);
@@ -541,7 +557,7 @@ public final class Fx {
     /** This part answers: the operation is of its handler's effect. */
     private <F, S, P, B, R, W, X, A, Y> At<Z> answer(In<F, S, P, B, R, W, Z> own, Asks<X, A> asks, Op<X, ?> op,
                                                      Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around) {
-      switch (own.handler.cases.apply(own.handler.of(op))) {
+      switch (own.handler.cases.apply(own.handler.own(op))) {
         case Answer<?, F, S, B, R> answered -> {
           return asks.answered(this, answered.of(op), at, rest, around);
         }

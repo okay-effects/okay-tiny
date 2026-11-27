@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 412 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 421 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 
@@ -89,7 +89,7 @@ a value, never replayed). Its state is a value too: a rest gone on with twice ha
 
 ## The usual effects
 
-[`Std.java`](src/main/java/okay/tiny/Std.java), 223 lines beside the kernel and written only with what it gives:
+[`Std.java`](src/main/java/okay/tiny/Std.java), 227 lines beside the kernel and written only with what it gives:
 each effect with the handler that is its monad.
 
 A state, a failure, something told and something given are **templates** of effects. An application says an

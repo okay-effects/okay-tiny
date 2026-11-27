@@ -234,4 +234,21 @@ class StdTest {
         run(Fx.<Final<Integer, Final<Integer, Integer>>>top().handler(Count.state.from(0))
             .handler(Other.state.from(0)).handle(both())));
   }
+
+  interface Twice {
+    State<Integer, Twice> one = State.of(Twice.class);
+    State<String, Twice> other = State.of(Twice.class);
+  }
+
+  /**
+   * A template said twice for one class is two effects that javac takes for one: the handler of one does not
+   * answer the other — which is of another type — and the other is left with no handler.
+   */
+  @Test
+  void aTemplateSaidTwiceForOneClassIsTwoEffects() {
+    Comp<String, Twice> asksTheOther = Twice.other.get();
+    IllegalStateException left = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+        () -> run(Fx.<Final<Integer, String>>top().handler(Twice.one.from(0)).handle(asksTheOther)));
+    assertEquals("no handler for Get[of=Twice]", left.getMessage());
+  }
 }
