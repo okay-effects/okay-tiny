@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 305 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 313 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -158,6 +158,14 @@ alike: two kernels are compared by runs taken in turn, several of each, and by t
 free monad is named for — not a `FlatMap` of a `Perform`. Where the operation is answered in place the machine
 gives the answer to `next` at once: no step is put on the stack and taken off it, and one object less is made.
 An answer cost 10.1 ns and costs 6.9 (the innermost of seven), 15.2 and 12.3 (the outermost).
+
+**A clause that only goes on is answered in place.** `on(op, (s, k) -> k.apply(answer, next))` gives the machine
+`k` applied, and nothing else: the machine sees that what the clause gave is its own rest gone on with, and
+takes nothing off and puts nothing back — it sets the state and gives the answer. This is the general case of
+which `answer(op, value)` is one; no word of its own was needed (one was tried: `answer(op, s -> x, s -> next)`).
+A clause of `on` does not keep its rest, so the states that rest was taken with are the loop's still, and the
+next state is written where the last was. A counter cost 18.9 ns and costs about 12; outermost of seven, 33
+and about 20 (measured with another process busy: to be taken again).
 
 ## 6. What is not here
 

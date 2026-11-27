@@ -324,19 +324,30 @@ public final class Fx {
                   rest = new Then((Function<Object, Comp<?, ?>>) (Function<?, ?>) then.next(), rest);
                 }
                 K<Object, Object, Object, Object> k = new K<>(rest, around, own, states, state);
-                taken = states;
                 Object its = own == around ? state : states[own.depth];
-                // the clause is a program of what is around that part; under it, a mark: was the rest gone on with
-                rest = takes instanceof Keep ? own.rest : new Taken(k, own.rest);
-                around = own.outer;
-                if (around != null) state = states[around.depth];
-                now = switch (takes) {
+                Comp<?, ?> does = switch (takes) {
                   case On<?, Object, Object, Object, Object> on -> made(on.op, op, erased(on.clause)).on(its, k);
                   case Keep<?, Object, Object, Object, Object> keep ->
                       made(keep.op, op, erased(keep.clause)).on(its, k);
                   case Leave<Object, Object, Object, Object> leave -> new Pure<>(leave.value);
                 };
-                continue turn;
+                if (does instanceof Resume<?, ?, ?, ?> on && on.k() == k) {
+                  // The clause only goes on with the rest: nothing was run between, so nothing is taken off or put
+                  // back. The rest is not gone on with again (a clause of `on` does not keep it), so its states
+                  // are no one's but the loop's: the next one is written where the last was.
+                  if (takes instanceof Keep) taken = states;
+                  if (own == around) state = on.state();
+                  else states = with(states, own.depth, on.state(), states != taken);
+                  value = on.value();
+                } else {
+                  taken = states;
+                  // the clause is a program of what is around that part; under it, a mark: was the rest gone on with
+                  rest = takes instanceof Keep ? own.rest : new Taken(k, own.rest);
+                  around = own.outer;
+                  if (around != null) state = states[around.depth];
+                  now = does;
+                  continue turn;
+                }
               }
             }
           }
