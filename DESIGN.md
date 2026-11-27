@@ -52,16 +52,22 @@ what the machine is at, `At<Z>`, over `Run<A, Y, Z>`, `Give<A, Y, Z>` and `Done<
   `Eff<?> & ..`, a `case` still does not refine `T`, and `Get<S> implements State<S, S>` cannot be matched. A
   record that names another effect than its own is caught where its effect's handler is written: the clause is
   of the other effect (`OperationOfAnotherFamily`).
-- **A handler is found by the class of its effect, and may pass.** The class is all the machine has of an effect:
-  `State<Integer>` and `State<String>` are one to it. javac refuses the two in one row, but not where a row is
-  hidden: a method generic in its part's row puts a `State<String>` around the part, the part asks a
-  `State<Integer>` meant for outside, and it was answered with a `String` — `ClassCastException`, in a program
-  javac had passed. What closes it is identity: `pass()`, a clause that says *not mine, ask the next handler
-  outside*, and in `Std` a `Key<T>` that the operations and their handler share. A handler answers the
-  operations of its own key, so the type an operation is answered with is the type its handler holds. It is
-  the family's `mine` (the TCK asks for it, and `TckTest` now says it with `pass()`). A row with nothing of an
-  effect in it cannot be said in Java, so this is checked when the program runs, not before: an operation
-  whose key has no handler is *no handler for* it.
+- **An effect with a type argument is a prototype, and its uses are effects of their own.** The class is all the
+  machine has of an effect: `State<Integer>` and `State<String>` are one to it. javac refuses the two in one
+  row — *State cannot be inherited with different arguments* — but not where a row is hidden: a method generic
+  in its part's row put a `State<String>` around the part, the part asked a `State<Integer>` meant for outside,
+  and it was answered with a `String`: `ClassCastException`, in a program javac had passed. And no type
+  argument — of the state, or a name beside it — can tell two of them apart in a row, for the same refusal
+  meets any generic supertype they share. So what tells them apart is a type of its own for each: an effect is
+  *made of* a prototype, by its type, one record that holds the prototype's operations, and the prototype as
+  that effect (`State.in(Ask::new)`). The record's constructor is how javac ties the effect to the state's
+  type — it is passed as a method that is generic in the answer — and the record's class is what the machine
+  finds the handler by. Then two states of two types are two types in a row, javac wants a handler of each,
+  and a handler of one never sees an operation of the other. Tried first, and taken back: a `Key<T>` that the
+  operations and their handler shared — a value passed at every use, and checked when the program runs.
+- **A handler may pass.** `pass()` is a clause: not this handler's own, ask the next handler of the effect
+  outside. It is the family's `mine` — the TCK asks for it — and is for an effect whose handlers answer by
+  something in the operation. `Std` does not need it.
 - **One effect of a class in a row.** `<R extends State<Integer> & State<String>>` is refused by javac, which is
   as well: a handler is found by the effect's class.
 - **Completeness is javac's.** A handler is `op -> switch (op) { .. }` over a sealed interface, and a `switch`
@@ -139,7 +145,7 @@ a stack of steps: steps are `Rest<A, Y>`, from a value of `A` to the value of th
 | the effect's class read from an empty varargs array | see above |
 | the machine as one loop over variables of type `Object` — the program, the value, the steps, the parts — with casts where a hidden type was opened | a trampoline of typed moves over `At<Z>`. A state costs the same or less; an operation answered in place 6.7 ns, not 5.2; 118 lines more |
 | the typed moves calling each other, the three put down in fields every 32 calls | a call stack as the mechanism; the trampoline needs no fields and reads nothing on trust |
-| `Std`'s effects without keys: `get()`, `state(0)`, `option(String.class)` | a handler answered every operation of its effect's class, of whatever type: see section 2. With a key the types at a chain's start are javac's too — `update(COUNT, n -> n + 1)`, not `Std.<Integer, R>update(..)` — and a class is no longer passed only to name a type |
+| `Std`'s state, failure, stream and given as generic effects found by their class — `get()`, `state(0)`, `option(String.class)` — and then asked with a `Key<T>` — `get(COUNT)`, `state(COUNT, 0)` | prototypes, and effects made of them (section 2). The first was unsound where a row is hidden; the second passed a value at every use and was checked only when the program ran |
 | a clause as one record for its four kinds (`answer`, `on`, `keep`, `leave`), with fields left empty and a flag | a sealed type of four records, each with what it needs: `leave` has no operation and no answer's type. An operation answered in place costs the same; one whose clause takes the rest, the same to 2 ns more |
 | a step as one record with flags (`mapped`) and a mark of type `Object`; `Case` and `Handler` as classes with `Object` fields | each is a sealed type over records now, the hidden type an existential inside: fewer casts, and the step 2 to 6 ns an operation faster |
 | the states of the handlers in an array by the depth of their parts, the innermost in a variable of the loop; copied before a write once a rest had it | each state is in its part's record, with its handler: no array, no depth, no copying. 22 lines less, and a state outermost of seven costs 16.4 ns, not 19.4 |

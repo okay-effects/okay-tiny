@@ -1,4 +1,4 @@
-// javac: AVariableChangedAfterADollar.java:18: error: local variables referenced from a lambda expression must be final
+// javac: AVariableChangedAfterADollar.java:24: error: local variables referenced from a lambda expression must be final
 package okay.tiny.direct;
 
 import static okay.tiny.Fx.*;
@@ -8,15 +8,21 @@ import static okay.tiny.direct.Do.$;
 import java.util.List;
 
 class AVariableChangedAfterADollar {
-  static final Key<Integer> COUNT = key("count");
-  static final Key<String> LOG = key("log");
+  sealed interface Count {
+    record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+    State.In<Integer, Count> state = State.in(Ask::new);
+  }
+  sealed interface Log {
+    record Ask<X>(Emit<String, X> op) implements Log, Emit.Of<String, X, Log> {}
+    Emit.In<String, Log> emit = Emit.in(Ask::new);
+  }
 
   @Direct
-  static <R extends State<Integer>> Comp<Integer, R> x() {
+  static <R extends Count> Comp<Integer, R> x() {
     int sum = 0;
-    Integer now = $(get(COUNT));
+    Integer now = $(Count.state.get());
     sum += now;
-    Integer then = $(get(COUNT));
+    Integer then = $(Count.state.get());
     return pure(sum + then);
   }
 }

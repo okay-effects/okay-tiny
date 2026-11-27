@@ -90,21 +90,43 @@ a value, never replayed). Its state is a value too: a rest gone on with twice ha
 
 ## The usual effects
 
-[`Std.java`](src/main/java/okay/tiny/Std.java), 224 lines beside the kernel and written only with what it gives:
+[`Std.java`](src/main/java/okay/tiny/Std.java), 276 lines beside the kernel and written only with what it gives:
 each effect with the handler that is its monad.
+
+A state, a failure, something told and something given are **prototypes**: generic operations and what handles
+them. An application makes effects of its own of them — a type for the row, one record, and the prototype as
+that effect:
+
+```java
+sealed interface Count {
+  record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+  State.In<Integer, Count> state = State.in(Ask::new);
+}
+```
+
+```java
+static <R extends Count> Comp<String, R> counted() {
+  return Count.state.update(n -> n + 1).flatMap(x -> Count.state.get()).map(n -> "at " + n);
+}
+
+run(Fx.<Final<Integer, String>>top().handler(Count.state.from(0)).handle(counted()));
+```
+
+| Prototype | An effect made of it asks | Its handlers | The part gives |
+|---|---|---|---|
+| `State<S, X>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>`: the last state and the value |
+| `Fail<E, X>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`; `Result<E, A>` |
+| `Emit<T, X>` | `.tell(item)` | `.told()` | `Told<T, A>`: what was told and the value |
+| `Env<E, X>` | `.ask()` | `.given(value)` | `A` |
+
+`Count` is an effect like one written by hand: javac wants its handler, two states of two types are two types
+in a row, and a handler of one never sees an operation of the other. Two effects have no type argument and are
+used as they are:
 
 | Effect | Asked with | Handler | The part gives |
 |---|---|---|---|
-| `State<S>` | `get(key)`, `put(key, s)`, `update(key, f)` | `state(key, initial)` | `Final<S, A>`: the last state and the value |
-| `Fail<E>` | `fail(key, error)` | `option(key)`, `result(key)` | `Optional<A>`; `Result<E, A>` |
-| `Emit<X>` | `tell(key, item)` | `told(key)` | `Told<X, A>`: what was told and the value |
-| `Env<E>` | `ask(key)` | `env(key, value)` | `A` |
 | `Choice` | `choose(options)` | `all()` | `List<A>`: every way |
 | `Async` | `await(start)`, `awaitAll(starts)` | `blocking()`; or `start(program)` | `A`; a `CompletableFuture<A>` |
-
-The first four are asked with a key — `static final Key<Integer> COUNT = key("count")` — and a handler answers
-the operations of its own key and passes the others on: two states in one program, and a state put by a method
-around a part it knows nothing of, each answer their own.
 
 And the usual shapes of a program, so that a loop is not a recursion each time: `forEach`, `collect`, `fold`,
 `iterate`, `when`, `zip`.

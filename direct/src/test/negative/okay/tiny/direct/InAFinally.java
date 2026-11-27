@@ -1,4 +1,4 @@
-// javac: InAFinally.java:18: error: @Direct: a $ in a finally
+// javac: InAFinally.java:24: error: @Direct: a $ in a finally
 package okay.tiny.direct;
 
 import static okay.tiny.Fx.*;
@@ -8,15 +8,21 @@ import static okay.tiny.direct.Do.$;
 import java.util.List;
 
 class InAFinally {
-  static final Key<Integer> COUNT = key("count");
-  static final Key<String> LOG = key("log");
+  sealed interface Count {
+    record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+    State.In<Integer, Count> state = State.in(Ask::new);
+  }
+  sealed interface Log {
+    record Ask<X>(Emit<String, X> op) implements Log, Emit.Of<String, X, Log> {}
+    Emit.In<String, Log> emit = Emit.in(Ask::new);
+  }
 
   @Direct
-  static <R extends State<Integer>> Comp<Integer, R> x() {
+  static <R extends Count> Comp<Integer, R> x() {
     try {
-      $(put(COUNT, 1));
+      $(Count.state.put(1));
     } finally {
-      $(put(COUNT, 0));
+      $(Count.state.put(0));
     }
     return pure(0);
   }

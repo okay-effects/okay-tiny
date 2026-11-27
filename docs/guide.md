@@ -95,11 +95,11 @@ the stack nor in the heap — so such a program may go on for ever (`StdTest`: t
 of each other, a stack of 256k and a heap of 64m).
 
 ```java
-static <R extends State<Long>> Comp<Boolean, R> even(long n) {
-  return n == 0 ? pure(true) : update(STEPS, count -> count + 1).flatMap(x -> odd(n - 1));
+static <R extends Steps> Comp<Boolean, R> even(long n) {
+  return n == 0 ? pure(true) : Steps.state.update(count -> count + 1).flatMap(x -> odd(n - 1));
 }
-static <R extends State<Long>> Comp<Boolean, R> odd(long n) {
-  return n == 0 ? pure(false) : update(STEPS, count -> count + 1).flatMap(x -> even(n - 1));
+static <R extends Steps> Comp<Boolean, R> odd(long n) {
+  return n == 0 ? pure(false) : Steps.state.update(count -> count + 1).flatMap(x -> even(n - 1));
 }
 ```
 
@@ -412,36 +412,56 @@ twice.
 
 ## 11. The usual effects
 
-`okay.tiny.Std` has the effects every application meets, each with the handler that gives it its meaning. They
-are written with nothing but what this guide has shown, and are patterns for your own.
+`okay.tiny.Std` has what every application meets, written with nothing but what this guide has shown.
+
+Four of them have a type argument — a state of `S`, a failure of `E`, a stream of `T`, something given of
+`E` — and the machine finds a handler by the class of its effect, which has none: a `State<Integer>` and a
+`State<String>` would be one effect to it. So these four are **prototypes** of effects: generic operations, and
+what handles them. An application makes effects of its own of them, each a type:
+
+```java
+sealed interface Count {
+  record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+  State.In<Integer, Count> state = State.in(Ask::new);
+}
+```
+
+Three lines: the type, for the row; its one record, which holds an operation of the prototype; and the
+prototype as that effect. It is asked and handled through the last:
+
+```java
+static <R extends Count> Comp<String, R> counted() {
+  return Count.state.update(n -> n + 1).flatMap(x -> Count.state.update(n -> n * 10))
+      .flatMap(x -> Count.state.get()).map(n -> "at " + n);
+}
+
+run(Fx.<Final<Integer, String>>top().handler(Count.state.from(0)).handle(counted()));
+// Final[state=10, value=at 10]
+```
+
+| Prototype | An effect made of it asks | Its handlers | The part gives |
+|---|---|---|---|
+| `State<S, X>` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)` | `Final<S, A>` |
+| `Fail<E, X>` | `.with(error)` | `.option()`, `.result()` | `Optional<A>`, `Result<E, A>` |
+| `Emit<T, X>` | `.tell(item)` | `.told()` | `Told<T, A>` |
+| `Env<E, X>` | `.ask()` | `.given(value)` | `A` |
+
+`Count` is an effect like one written by hand. javac wants its handler; two states of two types are two types
+in one row, `<R extends Count & Note>` (`StdTest.twoStatesOfOneType`); nothing is said at the start of a chain,
+since the types are the effect's; and a handler of one never sees an operation of another — a state put by a
+method around a part it knows nothing of does not answer that part's own
+(`StdTest.aStatePutAroundAPartDoesNotAnswerThePartsOwn`). An observer sees the record; what it holds is
+`op()`, of `Std.Of`.
+
+A prototype of your own is written the same way: a sealed generic family of operations, `P<T, X>` with `X` the
+answer; `P.Of`, `P.Made` and `P.In` as `State`'s are. Where a handler needs the type of an answer, the
+operation gives its clause itself, by a method — there the type is known, and a `switch` would not tell it
+(`State.clause`, `Env.given`).
+
+Two effects have no type argument and are used as they are:
 
 | Effect | Asked with | Handler | The part gives |
 |---|---|---|---|
-| `State<S>` | `get(key)`, `put(key, s)`, `update(key, f)` | `state(key, initial)` | `Final<S, A>` |
-| `Fail<E>` | `fail(key, error)` | `option(key)`, `result(key)` | `Optional<A>`, `Result<E, A>` |
-| `Emit<X>` | `tell(key, item)` | `told(key)` | `Told<X, A>` |
-| `Env<E>` | `ask(key)` | `env(key, value)` | `A` |
-
-The first four are asked with a **key**, which says which state, which failure, which stream, which thing
-given:
-
-```java
-static final Key<Integer> COUNT = key("count");
-
-static <R extends State<Integer>> Comp<String, R> counted() {
-  return update(COUNT, n -> n + 1).flatMap(x -> update(COUNT, n -> n * 10))
-      .flatMap(x -> get(COUNT)).map(n -> "at " + n);
-}
-
-run(Fx.<Final<Integer, String>>top().handler(state(COUNT, 0)).handle(counted()));   // Final[state=10, value=at 10]
-```
-
-A handler answers the operations of its own key and passes the others to the next handler of the effect
-outside (`pass()`). That is what a key is for: an effect with a type argument is one effect to the machine,
-whatever the argument, and without a key a handler of `State<String>` put by a method around a part it knows
-nothing of would answer that part's `State<Integer>` — with a `String`. With keys each answers its own
-(`StdTest.aStatePutAroundAPartDoesNotAnswerThePartsOwn`), two states of one type live side by side
-(`twoStatesOfOneType`), and javac has the type from the key: nothing is said at `update(COUNT, ..)`.
 | `Choice` | `choose(options)` | `all()` | `List<A>` |
 | `Async` | `await(start)`, `awaitAll(starts)` | `blocking()`; or `start(program)` | `A`; a `CompletableFuture<A>` |
 
@@ -449,11 +469,11 @@ The order of two handlers is meaning. A failure inside a state keeps the state; 
 lost with the part (`StdTest.theOrderOfTwoHandlersIsTheOrderOfTwoMonads`):
 
 ```java
-run(Fx.<Final<Integer, Result<String, String>>>top().handler(state(COUNT, 0)).handler(result(ODD))
+run(Fx.<Final<Integer, Result<String, String>>>top().handler(Count.state.from(0)).handler(Odd.fail.result())
     .handle(countThenFail()));
 // Final[state=1, value=Failed[error=no]]
 
-run(Fx.<Result<String, Final<Integer, String>>>top().handler(result(ODD)).handler(state(COUNT, 0))
+run(Fx.<Result<String, Final<Integer, String>>>top().handler(Odd.fail.result()).handler(Count.state.from(0))
     .handle(countThenFail()));
 // Failed[error=no]
 ```
@@ -473,14 +493,14 @@ written as a recursion each time:
 | `zip(one, other, (a, b) -> c)` | one, then the other, and a value of both |
 
 ```java
-static <R extends State<Integer> & Emit<String>> Comp<Integer, R> basket(List<String> items) {
+static <R extends Count & Log> Comp<Integer, R> basket(List<String> items) {
   return Std.<String, R>forEach(items, StdTest::<R>take)
-      .flatMap(x -> get(COUNT))
-      .flatMap(sum -> Std.<R>when(sum > 5, tell(LOG, "heavy")).map(x -> sum));
+      .flatMap(x -> Count.state.get())
+      .flatMap(sum -> Std.<R>when(sum > 5, Log.emit.tell("heavy")).map(x -> sum));
 }
 
-static <R extends State<Integer> & Emit<String>> Comp<Void, R> take(String item) {
-  return zip(tell(LOG, "took " + item), update(COUNT, n -> n + item.length()), (told, counted) -> null);
+static <R extends Count & Log> Comp<Void, R> take(String item) {
+  return zip(Log.emit.tell("took " + item), Count.state.update(n -> n + item.length()), (told, counted) -> null);
 }
 ```
 
@@ -566,8 +586,8 @@ Three things a test can check that a mock cannot easily:
   inferred, which cannot be written.
 - A row of several effects cannot be written as a type argument — `Fx.<Stock & Clock, A>row()` is not Java.
   Put the handlers in a method whose type variable is that row: `<R extends Stock & Clock>`.
-- A handler is found by its effect's class. An effect with type arguments is one effect whatever they are: give
-  its operations a key and let its handler `pass()` what is not its own, as `Std`'s do.
+- A handler is found by its effect's class, and a class has no type argument: an effect with one is written as
+  a prototype, and each use of it is an effect of its own, as `Std`'s are (section 11).
 - Mutable state captured by a handler is shared by every way of a rest gone on with twice. The handler's own
   state — the second argument of `folding` — is not.
 - Do not keep a `k` past its clause — unless the clause is made with `keep`, which is for that

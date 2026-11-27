@@ -68,10 +68,10 @@ handler there with `row()`.
 
 | Effect | Operations | Functions | Handlers |
 |---|---|---|---|
-| `State<S>` | `Get`, `Put` | `get(key)`, `put(key, s)`, `update(key, f)` | `state(key, initial)`: `Handler<State<S>, A, Final<S, A>, R>` |
-| `Fail<E>` | `Raise` | `fail(key, error)`, of any type | `option(key)`: `Optional<A>`; `result(key)`: `Result<E, A>` |
-| `Emit<X>` | `Tell` | `tell(key, item)` | `told(key)`: `Told<X, A>` |
-| `Env<E>` | `Ask` | `ask(key)` | `env(key, value)`: `A` |
+| `State<S, X>` | `Get`, `Put` | `.get()`, `.put(s)`, `.update(f)` | `.from(initial)`: `Handler<F, A, Final<S, A>, R>` |
+| `Fail<E, X>` | `Raise` | `.with(error)`, of any type | `.option()`: `Optional<A>`; `.result()`: `Result<E, A>` |
+| `Emit<T, X>` | `Tell` | `.tell(item)` | `.told()`: `Told<T, A>` |
+| `Env<E, X>` | `Ask` | `.ask()` | `.given(value)`: `A` |
 | `Choice` | `Of<X>` | `choose(options)` | `all()`: `List<A>` |
 | `Async` | `Await<X>` | `await(start)`, `awaitAll(starts)` | `blocking()`: `A`; `start(program)`, `start(program, see)`: runs a `Comp<A, Async>`, gives a `CompletableFuture<A>` |
 
@@ -87,9 +87,15 @@ handler there with `row()`.
 Items are any `Iterable`, read once into a list when the program is made. A body's row may be less than `R`.
 
 `Final<S, A>(state, value)`, `Told<X, A>(items, value)`, `Result<E, A>` = `Ok(value)` or `Failed(error)`.
-`Key<T>`, made by `key(name)`: which state, which failure, which stream, which thing given. The operations of a
-key are answered by the handler put with that key; a handler passes the others on. A key is of one type, so
-the type an operation is answered with is the type its handler holds.
+The first four are prototypes, not effects: the functions and handlers in their rows are those of an effect made
+of one, reached through it — `Count.state.get()`, `Count.state.from(0)`.
+
+| Making an effect of a prototype `P` | |
+|---|---|
+| `sealed interface Count { .. }` | the effect: a type of its own, for the row |
+| `record Ask<X>(P<T, X> op) implements Count, P.Of<T, X, Count> {}` | its one operation: it holds one of the prototype's, whose answer is `X` |
+| `P.In<T, Count> name = P.in(Ask::new);` | the prototype as that effect: what is asked of it, and its handlers |
+| `Std.Of<P, X, F>` | what such a record implements: `op()` is the prototype's operation — an observer reads it there |
 
 ## What javac refuses
 

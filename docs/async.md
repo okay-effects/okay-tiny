@@ -52,7 +52,7 @@ left. The other handlers are inside the program and go on with its rest, each wi
 
 ```java
 Comp<Integer, Async> counted =
-    Fx.<Async, Final<Integer, Integer>>row().handler(state(COUNT, 10)).handle(countedPrice(price)).map(Final::state);
+    Fx.<Async, Final<Integer, Integer>>row().handler(Count.state.from(10)).handle(countedPrice(price)).map(Final::state);
 CompletableFuture<Integer> state = start(counted);
 ```
 

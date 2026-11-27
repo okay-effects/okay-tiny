@@ -19,7 +19,10 @@ import org.junit.jupiter.api.Test;
 
 /** Asynchrony as an effect: one program, a handler that waits and one that does not. */
 class AsyncTest {
-  static final Key<Integer> COUNT = key("count");
+  sealed interface Count {
+    record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+    State.In<Integer, Count> state = State.in(Ask::new);
+  }
 
   /** A service that answers later: each call is a stage the test ends when it likes. */
   static final class Prices {
@@ -84,7 +87,7 @@ class AsyncTest {
   @Test
   void aStateGoesOnAcrossAWait() {
     Prices prices = new Prices();
-    Comp<Integer, Async> counted = Fx.<Async, Final<Integer, Integer>>row().handler(state(COUNT, 10))
+    Comp<Integer, Async> counted = Fx.<Async, Final<Integer, Integer>>row().handler(Count.state.from(10))
         .handle(countedPrice(prices.of("a")))
         .map(Final::state);
     CompletableFuture<Integer> state = start(counted);
@@ -92,9 +95,9 @@ class AsyncTest {
     assertEquals(16, state.join());
   }
 
-  static <R extends Async & State<Integer>> Comp<Integer, R> countedPrice(Supplier<CompletionStage<Integer>> price) {
-    return update(COUNT, n -> n + 1).flatMap(x -> Std.<Integer, R>await(price))
-        .flatMap(p -> update(COUNT, n -> n + p)).map(x -> 0);
+  static <R extends Async & Count> Comp<Integer, R> countedPrice(Supplier<CompletionStage<Integer>> price) {
+    return Count.state.update(n -> n + 1).flatMap(x -> Std.<Integer, R>await(price))
+        .flatMap(p -> Count.state.update(n -> n + p)).map(x -> 0);
   }
 
   static Supplier<CompletionStage<Integer>> failing(RuntimeException failure) {
@@ -158,10 +161,12 @@ class AsyncTest {
   void theObserverSeesTheOperationsAfterAWaitToo() {
     Prices prices = new Prices();
     List<String> seen = new ArrayList<>();
-    Comp<Integer, Async> program = Fx.<Async, Final<Integer, Integer>>row().handler(state(COUNT, 0))
+    Comp<Integer, Async> program = Fx.<Async, Final<Integer, Integer>>row().handler(Count.state.from(0))
         .handle(countedPrice(prices.of("a")))
         .map(Final::state);
-    CompletableFuture<Integer> state = start(program, op -> seen.add(op.getClass().getSimpleName()));
+    // an operation of an effect made of a prototype is seen as what it holds: the prototype's operation
+    CompletableFuture<Integer> state = start(program, op ->
+        seen.add((op instanceof Of<?, ?, ?> held ? held.op() : op).getClass().getSimpleName()));
     assertEquals(List.of("Get", "Put", "Await"), seen);
     prices.pending.get(0).complete(5);
     assertEquals(6, state.join());

@@ -54,17 +54,26 @@ Optional<Order> o = run(Fx.<Optional<Order>>top().handler(stock(left)).handler(t
 | only to answer | `handling(E.class, op -> switch (op) { case X x -> answer(x, value); })` |
 | a state | `folding(E.class, s0, (s, a) -> a, op -> switch (op) { case X x -> on(x, (s, k) -> k.apply(answer, next)); })` |
 | its own result | the second argument, `ret`: `(s, a) -> b` — the handler is `Handler<E, A, B, R>` |
-| to answer only some operations | `case X x -> x.key() != key ? pass() : on(x, ..)`: the next handler outside is asked |
+| to answer only some operations | `case X x -> mine(x) ? on(x, ..) : pass()`: the next handler of the effect outside is asked |
 | to leave the part | a clause that does not apply `k`: `on(x, (s, k) -> pure(value))`; for any operation, `leave(value)` |
 | to go on more than once | `k.apply(a, s).flatMap(first -> k.apply(b, s).map(second -> ..))`: `k` is a value, never replayed |
 | to ask another effect | the clause is a program of the row that stays: `<R extends Clock> Handler<Mail, B, B, R>` |
 | to see every operation | `run(program, op -> ..)`; or, for one effect, a handler that asks the operation again outside |
 | to close something | `ensuring(part, () -> ..)`: at the end, when the part is left, under an exception |
 
-`Std`, the first four asked with a key (`static final Key<Integer> COUNT = key("count")`), which their handler
-shares: `State<S>` (`get(key)`, `put(key, s)`, `update(key, f)`; `state(key, initial)`), `Fail<E>` (`fail(key,
-error)`; `option(key)`, `result(key)`), `Emit<X>` (`tell(key, item)`; `told(key)`), `Env<E>` (`ask(key)`;
-`env(key, value)`), `Choice`
+`Std` has four prototypes — generic operations and what handles them — of which an application makes effects of
+its own, each a type:
+
+```java
+sealed interface Count {
+  record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+  State.In<Integer, Count> state = State.in(Ask::new);
+}
+```
+
+`State<S, X>` (`Count.state.get()`, `.put(s)`, `.update(f)`; handler `.from(initial)`), `Fail<E, X>` (`.with(error)`;
+`.option()`, `.result()`), `Emit<T, X>` (`.tell(item)`; `.told()`), `Env<E, X>` (`.ask()`; `.given(value)`). And two
+effects used as they are: `Choice`
 (`choose(options)`; `all()`), `Async` (`await(() -> stage)`, `awaitAll(starts)`; `blocking()` — the thread waits; or
 `start(program)` for a `Comp<A, Async>` — no thread waits, a `CompletableFuture<A>`).
 
@@ -103,10 +112,10 @@ before a `$` cannot change after it.
   type argument.
 - An effect interface has no generic supertype of its own; each record says `Op<Answer, Effect>`. Two effects
   that extended `Op<.., Self>` could never bound one row.
-- A handler is found by its effect's class: an effect with type arguments (`State<S>`) is one effect whatever
-  they are. So such an effect of your own gives its operations a key, as `Std`'s do, and its handler answers its
-  own and returns `pass()` for the others: else a handler of `State<String>` put by a method around a part it
-  knows nothing of answers that part's `State<Integer>`, and javac does not see it.
+- A handler is found by its effect's class, and a class has no type argument. So an effect with a type
+  argument is written as a prototype, and each use of it is an effect of its own made of the prototype — as
+  `Std`'s: never one generic effect handled by its class, where a handler of `State<String>` would answer
+  another's `State<Integer>`.
 - `ensuring`'s `after` is a `Runnable`: it asks no operation. Do not keep a `k` past its clause (a clause made with `keep` may:
   it is how `Std.start` goes on from a callback): a rest gone on
   with after its clause ended is closed twice.

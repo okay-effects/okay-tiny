@@ -11,9 +11,20 @@ import java.util.List;
 final class Programs {
   private Programs() {}
 
-  static final Key<Integer> COUNT = key("count");
-  static final Key<Long> STEPS = key("steps");
-  static final Key<String> LOG = key("log");
+  sealed interface Count {
+    record Ask<X>(State<Integer, X> op) implements Count, State.Of<Integer, X, Count> {}
+    State.In<Integer, Count> state = State.in(Ask::new);
+  }
+
+  sealed interface Steps {
+    record Ask<X>(State<Long, X> op) implements Steps, State.Of<Long, X, Steps> {}
+    State.In<Long, Steps> state = State.in(Ask::new);
+  }
+
+  sealed interface Log {
+    record Ask<X>(Emit<String, X> op) implements Log, Emit.Of<String, X, Log> {}
+    Emit.In<String, Log> emit = Emit.in(Ask::new);
+  }
 
   sealed interface Stock {
     record Reserve(String sku, int qty) implements Stock, Op<Boolean, Stock> {}
@@ -44,45 +55,45 @@ final class Programs {
 
   /** Two $ in one expression, in the order written; a state with no types said. */
   @Direct
-  static <R extends State<Integer> & Emit<String>> Comp<Integer, R> counted(String word) {
-    $(tell(LOG, "counting " + word));
-    Integer before = $(get(COUNT));
-    $(put(COUNT, before + word.length()));
-    int twice = $(get(COUNT)) + $(get(COUNT));
+  static <R extends Count & Log> Comp<Integer, R> counted(String word) {
+    $(Log.emit.tell("counting " + word));
+    Integer before = $(Count.state.get());
+    $(Count.state.put(before + word.length()));
+    int twice = $(Count.state.get()) + $(Count.state.get());
     return pure(twice);
   }
 
   /** A branch that ends the method, and one that goes on. */
   @Direct
-  static <R extends State<Integer> & Emit<String>> Comp<String, R> branches(int n) {
+  static <R extends Count & Log> Comp<String, R> branches(int n) {
     if (n < 0) {
-      $(tell(LOG, "negative"));
+      $(Log.emit.tell("negative"));
       return pure("refused");
     } else if (n == 0) {
-      $(tell(LOG, "zero"));
+      $(Log.emit.tell("zero"));
     } else {
-      $(put(COUNT, n));
+      $(Count.state.put(n));
     }
-    Integer now = $(get(COUNT));
+    Integer now = $(Count.state.get());
     return pure("state " + now);
   }
 
   /** Calls in the tail, between two methods: no stack, no heap. */
   @Direct
-  static <R extends State<Long>> Comp<Boolean, R> even(long n) {
+  static <R extends Steps> Comp<Boolean, R> even(long n) {
     if (n == 0) return pure(true);
     $(Programs.<R>bump());
     return odd(n - 1);
   }
 
   @Direct
-  static <R extends State<Long>> Comp<Boolean, R> odd(long n) {
+  static <R extends Steps> Comp<Boolean, R> odd(long n) {
     if (n == 0) return pure(false);
     $(Programs.<R>bump());
     return even(n - 1);
   }
 
-  static <R extends State<Long>> Comp<Void, R> bump() { return update(STEPS, count -> count + 1); }
+  static <R extends Steps> Comp<Void, R> bump() { return Steps.state.update(count -> count + 1); }
 
   /** try-finally is ensuring; a block; a value that is not used. */
   @Direct
