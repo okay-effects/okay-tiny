@@ -25,13 +25,11 @@ Making a node does nothing. `R`, the row, is only in the types: nothing of it is
 |---|---|
 | `now` | the node being run |
 | `rest` | the steps of the part being run: what to do with the value of `now`, innermost first |
-| `around` | the parts being run, innermost first: for each its handler, its depth, and the steps after it |
-| `state` | the state of the innermost part's handler |
-| `states` | the states of the others, by depth; an array that is never changed once shared |
+| `around` | the parts being run, innermost first: for each its handler, that handler's state, and the steps after it |
 | `asked` | the operation asked last, for `Fx.Where` |
 
-`rest` and `around` are immutable linked lists. That is what lets a rest be a value: to take it is to keep two
-pointers.
+`rest` and `around` are linked lists. The steps are never changed; a part's state moves on where it is, in the
+part's own record. That is what lets a rest be a value: to take it is to keep two pointers.
 
 A step is one of four, a sealed type: `Then` (of `flatMap`: a program of the value so far), `Mapping` (of `map`: a
 value of it), and two marks the value passes — `Closing` (of `ensuring`: the part it was for has ended) and
@@ -69,11 +67,11 @@ When a clause needs `k`:
 before                              the clause runs with
 around:  [C] [B] [H] [A]            around:  [A]
 rest:    steps of C                 rest:    a mark, then the steps after H
-k = (steps of C, the parts C..H, their states)
+k = (steps of C, the parts C..H, each with its state)
 ```
 
-Everything from the question to the end of the handler's own part `H` goes into `k` — two pointers and the
-array of states. The clause then runs as a program of what is *around* `H`: that is why it may ask the effects
+Everything from the question to the end of the handler's own part `H` goes into `k` — two pointers. The parts
+taken off are run by no one from then on: they are the rest's, with the states they had. The clause then runs as a program of what is *around* `H`: that is why it may ask the effects
 that stay outside, and why its own handler is not in force inside it.
 
 The mark holds `k`. When the clause ends and `k` was never applied, the rest was left, and whatever it was to
@@ -88,45 +86,36 @@ of the clause — a program of its own, the rest gone on with later or twice, th
 `k.apply(answer, next)` makes a `Resume` node. When the loop reaches it:
 
 ```
-around now:  [A']                   around after:  [C] [B] [H] [A']
-                                    states:        C, B as they were when asked; H = next; A' as it is now
+around now:  [A']                   around after:  [C'] [B'] [H'] [A']
+                                    states:        C', B' as C, B were when asked; H' = next; A' as it is now
 ```
 
 The parts go back on top of what is run *now*, not of what was run then. So a handler outside (`A`) keeps
 whatever happened to it while the clause ran, and the parts inside come back exactly as they were — which is
 what makes a second `k.apply` a second, independent run.
 
-If nothing around changed and the clause only went on, the same records are reused and nothing is made.
+The parts put back are made anew of those taken off, so that the ones the rest holds are never run and never
+change: a rest gone on with twice goes on with two sets of parts.
 
 ## Where the state lives
 
-The innermost handler's state is a variable of the loop: for it, a new state is an assignment. The others are
-in `states`, by depth; a new state for one of them is one copy of that array. Entering a part moves the
-innermost state into the array; leaving a part brings the next one out.
+With its handler: a part's record holds the handler and that handler's state, of one type. A new state — a
+clause that goes on with `k.apply(answer, next)` — is written there, whichever part it is: the innermost and the
+outermost cost the same.
 
-The array is written in place while it is the loop's alone, and has room to grow. It is not the loop's alone
-when it is the one a rest was last taken off with (`taken`): the loop only ever goes on with that one or with a
-copy it has made since, so one reference says it. So a
-part more costs the same however many are around it, and a rest taken off still finds its states as they
-were (`ScenariosTest.theStatesOfARestTakenOffAreItsOwn`).
-
-The alternative — the state in each part's record — makes a new state for an outer handler cost a new record
-for every part inside it. `DESIGN.md` has the numbers.
-
-## When it fails
-
-Any exception leaves the loop through one `catch`. It adds `Fx.Where` to the exception, runs every `ensuring`
-mark still on the stacks — and those of any rest a running clause holds and has not applied — and throws the
-exception on, unchanged.
+It may be written in place because a part that is run is the loop's alone. A rest taken off takes its parts
+with it, and the loop goes on with those around; a rest gone on with is given parts made anew. Only a rest that
+may be *kept* while its parts go on being run (`keep`) takes parts of its own at once
+(`ScenariosTest.theStatesOfARestTakenOffAreItsOwn`, `partsDeepOneInAnotherKeepTheirStatesOnEveryWay`).
 
 ## What to check when reading it
 
-- No field of a node, a step or a part is ever written after it is made, except `K.gone`, a flag that only
-  ever goes from false to true.
-- `states` is copied before every write once it has been given to a `k`.
+- No field of a node or a step is ever written after it is made. Two things are: the state of a part that is
+  being run, and `K.gone`, a flag that only ever goes from false to true.
+- A part a rest holds is never run: the rest goes on with parts made anew of it.
 - The five places marked unchecked: the phantom row in `flatMap` and in `map`; the handlers put so far, kept as
   a function of a program of any type; the result of `handle`; and the loop. The loop is where the types that
-  `Case`, `Handler` and the nodes hide are opened: its registers — `value`, `state`, `states` — hold what each
+  `Case`, `Handler` and the nodes hide are opened: its registers — `value`, and a part as the loop holds it — hold what each
   step, in its turn, has a type for, and a variable of a Java loop has one type. Nothing else is erased: the
   nodes, a clause (`Case` over its four kinds), a handler (`Handler` over `Fold`) and a step are typed. What guards the
   loop is `on` (the answer type is the operation's), the two sealed types, and the test that a clause was made

@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 313 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 290 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -75,11 +75,11 @@ One loop. The rest of the program is a stack of parts — one for each handler i
   the clause runs as a program of what is around that part.
 - `k.apply(answer, next)`: the parts taken off go back on top of what is run now. The states of the parts inside
   the handler's own are as they were when the operation was asked; those around it are as they are now; its own
-  is `next`. This is the one place of the kernel that needs its picture (in the comment there).
+  is `next`. They go back as parts made anew of those taken off, which the rest goes on holding.
 - The end of a part: `ret` of the handler's state and the part's value.
-- The state of the innermost part is in a variable of the loop, those of the others in an array by depth, never
-  changed in place once shared. So a state that moves on costs an assignment for the innermost handler and one
-  copy of the array for another — not a copy of every part inside it.
+- The state of a handler is in the record of its part, with the handler, and moves on there: a new state is
+  one write, whichever part it is. A part that is run is the loop's alone — a rest taken off takes its parts
+  with it, and goes on with parts made anew — so nothing is copied to keep a rest's states its own.
 
 ## 3a. Leaving, closing, failing
 
@@ -116,6 +116,7 @@ One loop. The rest of the program is a stack of parts — one for each handler i
 | the effect's class read from an empty varargs array | see above |
 | a clause as one record for its four kinds (`answer`, `on`, `keep`, `leave`), with fields left empty and a flag | a sealed type of four records, each with what it needs: `leave` has no operation and no answer's type. An operation answered in place costs the same; one whose clause takes the rest, the same to 2 ns more |
 | a step as one record with flags (`mapped`) and a mark of type `Object`; `Case` and `Handler` as classes with `Object` fields | each is a sealed type over records now, the hidden type an existential inside: fewer casts, and the step 2 to 6 ns an operation faster |
+| the states of the handlers in an array by the depth of their parts, the innermost in a variable of the loop; copied before a write once a rest had it | each state is in its part's record, with its handler: no array, no depth, no copying. 22 lines less, and a state outermost of seven costs 16.4 ns, not 19.4 |
 | in a rest put back, always a copy of the states with those inside copied in — without the case where nothing around has changed, which is one `clone` | a state outermost of three cost 36 ns an operation, not 30 |
 
 ## 5. What it costs
@@ -124,13 +125,13 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 
 | | ns |
 |---|---|
-| `answer`, the handler the innermost of seven | 6.9 |
-| `answer`, the handler the outermost of seven | 12.3 |
-| an answer and two `map` | 20.4 |
-| a counter (a state that moves on at every operation), alone | 17.6 |
-| the counter the innermost of seven | 19.1 |
-| the counter the outermost of three | 25.8 |
-| the counter the outermost of seven | 30.6 |
+| `answer`, the handler the innermost of seven | 5.0 |
+| `answer`, the handler the outermost of seven | 11.6 |
+| an answer and two `map` | 17 or 22, from one run to the next |
+| a counter (a state that moves on at every operation), alone | 9.0 |
+| the counter the innermost of seven | 9.6 |
+| the counter the outermost of three | 11.4 |
+| the counter the outermost of seven | 16.4 |
 
 A free monad makes five or six small objects for an operation; that is the floor. Next to a query to a database
 it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark
@@ -147,8 +148,8 @@ and four objects, 5.9 ns; it is the one word a program without it cannot say che
 kernel's own `Part` was already such a thing for handlers. It is the last case of the loop's `switch`: put
 before `Part` and `Perform` it cost a counter 3 ns an operation.
 
-The array of states is written in place while no rest taken off has it (section 3). Before that every new part
-copied it, and parts one in another cost the square of their depth: 10^5 levels, 0.6 s; now 0.05 s.
+A part more costs the same however deep it is. When the states were in an array that every new part copied,
+parts one in another cost the square of their depth: 10^5 levels, 0.6 s; now 0.05 s.
 
 **How far these numbers hold.** They are of a machine with nothing else running. With another process busy, a
 state outermost of seven gave 33 to 41 ns from one run to the next, for this kernel and for the one before it
@@ -163,9 +164,7 @@ An answer cost 10.1 ns and costs 6.9 (the innermost of seven), 15.2 and 12.3 (th
 `k` applied, and nothing else: the machine sees that what the clause gave is its own rest gone on with, and
 takes nothing off and puts nothing back — it sets the state and gives the answer. This is the general case of
 which `answer(op, value)` is one; no word of its own was needed (one was tried: `answer(op, s -> x, s -> next)`).
-A clause of `on` does not keep its rest, so the states that rest was taken with are the loop's still, and the
-next state is written where the last was. A counter cost 18.9 ns and costs about 12; outermost of seven, 33
-and about 20 (measured with another process busy: to be taken again).
+A counter cost 18.9 ns and costs 9.0; outermost of seven, 33 and 16.4.
 
 ## 6. What is not here
 

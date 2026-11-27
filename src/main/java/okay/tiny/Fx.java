@@ -1,6 +1,5 @@
 package okay.tiny;
 
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -155,30 +154,41 @@ public final class Fx {
    */
   public static <A, R> Comp<A, R> ensuring(Comp<A, R> part, Runnable after) { return new Ensure<>(part, after); }
 
-  /** The rest of the part, to its end, as a value: immutable, so it may be gone on with once, twice or never. */
+  /**
+   * The rest of the part, to its end, as a value: it may be gone on with once, twice or never. It is the steps of
+   * the innermost part and the parts taken with it, each with the state it had: once taken off they are run by
+   * no one, and each time the rest goes on it goes on with parts made anew of them.
+   */
   private static final class K<X, S, B, R> implements BiFunction<X, S, Comp<B, R>> {
     private final Rest rest;                 // the steps of the innermost part
-    private final Around top, own;           // the parts taken with it: from the innermost to the handler's own
-    private final Object[] states;
-    private final Object state;
+    private Around<?> top, own;              // the parts taken with it: from the innermost to the handler's own
     private boolean gone;                    // gone on with, at least once: else, when its clause ends, it was left
 
-    private K(Rest rest, Around top, Around own, Object[] states, Object state) {
-      this.rest = rest; this.top = top; this.own = own; this.states = states; this.state = state;
-    }
+    private K(Rest rest, Around<?> top, Around<?> own) { this.rest = rest; this.top = top; this.own = own; }
 
     @Override public Comp<B, R> apply(X answer, S state) { return new Resume<>(this, answer, state); }
 
-    /** The parts the rest was taken with, from its innermost to the handler's own, on top of those run now. */
-    private Around onto(Around from, int deeper, Rest rest, Around now) {
-      return from == own ? new Around(from.handler, from.depth + deeper, rest, now)
-          : new Around(from.handler, from.depth + deeper, from.rest, onto(from.outer, deeper, rest, now));
+    /**
+     * The parts the rest was taken with, anew: each with the state it had, its own with `state` and `rest` after
+     * it, on top of the parts run now.
+     */
+    private Around<Object> onto(Around<?> from, Object state, Rest rest, Around<Object> now) {
+      return from == own ? new Around<>(own.handler(), state, rest, now)
+          : new Around<>(from.handler(), from.state, from.rest, onto(from.outer, state, rest, now));
+    }
+
+    /** For a rest that is kept while its parts go on being run: parts of its own, with the states as they are. */
+    private void keep() {
+      Around<Object> kept = onto(top, own.state, own.rest, own.outer), its = kept;
+      for (Around<?> part = top; part != own; part = part.outer) its = its.outer;
+      top = kept;
+      own = its;
     }
 
     /** The rest is left: what it was to close is closed, the innermost first. */
     private void left(Throwable thrown) {
       close(rest, thrown);
-      for (Around part = top; part != own; part = part.outer) close(part.rest, thrown);
+      for (Around<?> part = top; part != own; part = part.outer) close(part.rest, thrown);
     }
   }
 
@@ -251,8 +261,26 @@ public final class Fx {
   /** A mark under a clause: the rest that clause was given, to see when it ends whether it went on with it. */
   private record Taken(K<?, ?, ?, ?> k, Rest after) implements Rest {}
 
-  /** A part being run: its handler, how many parts are around it, the steps after it, and the part around it. */
-  private record Around(Fold<Object, Object, Object, Object, Object> handler, int depth, Rest rest, Around outer) {}
+  /**
+   * A part being run: its handler, and with it the state of that handler, which moves on as the part is run; the
+   * steps after the part; and the part around it.
+   */
+  private static final class Around<S> {
+    private final Fold<Object, S, Object, Object, Object> handler;
+    private S state;
+    private final Rest rest;
+    private final Around<Object> outer;
+
+    private Around(Fold<Object, S, Object, Object, Object> handler, S state, Rest rest, Around<Object> outer) {
+      this.handler = handler; this.state = state; this.rest = rest; this.outer = outer;
+    }
+
+    /** As the loop holds it: the type of the state, which only the handler knew, is the loop's Object. */
+    @SuppressWarnings("unchecked")
+    private Fold<Object, Object, Object, Object, Object> handler() {
+      return (Fold<Object, Object, Object, Object, Object>) handler;
+    }
+  }
 
   /** Where a program was when it failed: added to the exception, which is thrown on as it is. */
   public static final class Where extends RuntimeException {
@@ -271,10 +299,7 @@ public final class Fx {
   public static <A> A run(Comp<A, Object> program, Consumer<? super Op<?, ?>> see) {
     Comp<?, ?> now = program;
     Rest rest = null;                     // the steps of the part being run
-    Around around = null;                 // that part, and those around it
-    Object state = null;                  // the state of that part's handler; and of those around it,
-    Object[] states = {};                 //   each at its part's depth: an array never changed once it is shared,
-    Object[] taken = null;                //   and written in place unless it is the one a rest was taken off with
+    Around<Object> around = null;         // that part, and those around it: each with its handler's state
     Op<?, ?> asked = null;                // the operation asked last
     try {
       turn: while (true) {
@@ -297,10 +322,8 @@ public final class Fx {
             continue;
           }
           case Part<?, ?, ?, ?> part -> {                     // a handler around a part of the program
-            if (around != null) states = with(states, around.depth, state, states != taken);
             var handler = (Fold<Object, Object, Object, Object, Object>) (Handler<?, ?, ?, ?>) part.handler();
-            around = new Around(handler, around == null ? 0 : around.depth + 1, rest, around);
-            state = handler.state;
+            around = new Around<>(handler, handler.state, rest, around);
             rest = null;
             now = part.part();
             continue;
@@ -308,7 +331,7 @@ public final class Fx {
           case Asks asks -> {
             Op<?, ?> op = asked = asks.op();
             if (see != null) see.accept(op);
-            Around own = around;
+            Around<Object> own = around;
             while (own != null && !own.handler.effect.isInstance(op)) own = own.outer;
             if (own == null) throw new IllegalStateException("no handler for " + op);
             switch (own.handler.cases.apply(op)) {
@@ -323,8 +346,8 @@ public final class Fx {
                 if (asks instanceof Asking<?, ?, ?> then) {
                   rest = new Then((Function<Object, Comp<?, ?>>) (Function<?, ?>) then.next(), rest);
                 }
-                K<Object, Object, Object, Object> k = new K<>(rest, around, own, states, state);
-                Object its = own == around ? state : states[own.depth];
+                K<Object, Object, Object, Object> k = new K<>(rest, around, own);
+                Object its = own.state;
                 Comp<?, ?> does = switch (takes) {
                   case On<?, Object, Object, Object, Object> on -> made(on.op, op, erased(on.clause)).on(its, k);
                   case Keep<?, Object, Object, Object, Object> keep ->
@@ -333,55 +356,29 @@ public final class Fx {
                 };
                 if (does instanceof Resume<?, ?, ?, ?> on && on.k() == k) {
                   // The clause only goes on with the rest: nothing was run between, so nothing is taken off or put
-                  // back. The rest is not gone on with again (a clause of `on` does not keep it), so its states
-                  // are no one's but the loop's: the next one is written where the last was.
-                  if (takes instanceof Keep) taken = states;
-                  if (own == around) state = on.state();
-                  else states = with(states, own.depth, on.state(), states != taken);
+                  // back, and the state moves on where it is. (A rest that may be kept takes parts of its own.)
+                  if (takes instanceof Keep) k.keep();
+                  own.state = on.state();
                   value = on.value();
                 } else {
-                  taken = states;
-                  // the clause is a program of what is around that part; under it, a mark: was the rest gone on with
+                  // The rest is taken off, with its parts: they are the rest's now, and run by no one. The clause
+                  // is a program of what is around that part; under it, a mark: was the rest gone on with.
                   rest = takes instanceof Keep ? own.rest : new Taken(k, own.rest);
                   around = own.outer;
-                  if (around != null) state = states[around.depth];
                   now = does;
                   continue turn;
                 }
               }
             }
           }
-          // k.apply(answer, next): the parts taken off with the rest go back on top of what is run now.
-          //
-          //   when it asked                 the clause runs                 the rest goes on
-          //   top  [C]  state in `state`
-          //        [B]  states[2]      k = the rest and [C] [B] [own]       [C]  as it was when it asked
-          //   own  [H]  states[1]                                           [B]  as it was when it asked
-          //        [A]  states[0]           [A] `state`: may change         [H]  next
-          //                                                                 [A]  as it is now
-          //
-          // The state of the innermost part is in `state`, those of the others in `states`, by depth. So: nothing
-          // inside its own part — only `state` is set; else one copy of the array, with `next` at its own depth.
-          case Resume<?, ?, ?, ?> r -> {                      // the rest is put back, on top of what the clause is at
+          // k.apply(answer, next): the parts taken off with the rest go back, anew, on top of what is run now.
+          // Those inside the handler's own have the states they had when it asked; its own has `next`; those
+          // around it are the ones run now, as they are.
+          case Resume<?, ?, ?, ?> r -> {
             K<?, ?, ?, ?> k = r.k();
             k.gone = true;
             if (rest instanceof Taken mark && mark.k == k) rest = mark.after;   // the clause ends with this: its mark
-            int depth = around == null ? 0 : around.depth + 1;          // of the handler's own part, as put now
-            int inside = k.top.depth - k.own.depth;                     // the parts the rest has inside that one
-            if (around != null) states = with(states, around.depth, state, states != taken);
-            if (inside > 0 || depth != k.own.depth) {   // the states inside: as they were when it asked
-              Object[] next;
-              if (states == k.states && depth == k.own.depth) next = states.clone(); // nothing around has changed
-              else {
-                next = Arrays.copyOf(states, Math.max(states.length, depth + 1 + inside));
-                if (inside > 1) System.arraycopy(k.states, k.own.depth + 1, next, depth + 1, inside - 1);
-              }
-              next[depth] = r.state();
-              states = next;
-            }
-            state = inside > 0 ? k.state : r.state();   // its own: the next one
-            boolean same = rest == k.own.rest && around == k.own.outer; // a clause that only goes on: no part anew
-            around = same ? k.top : k.onto(k.top, depth - k.own.depth, rest, around);
+            around = k.onto(k.top, r.state(), rest, around);
             rest = k.rest;
             value = r.value();
           }
@@ -393,10 +390,9 @@ public final class Fx {
         while (true) {
           while (rest == null) {                        // the end of a part: what its handler gives goes on below
             if (around == null) return (A) value;
-            value = around.handler.ret.apply(state, value);
+            value = around.handler.ret.apply(around.state, value);
             rest = around.rest;
             around = around.outer;
-            if (around != null) state = states[around.depth];
           }
           switch (rest) {
             case Then step -> {
@@ -438,29 +434,12 @@ public final class Fx {
   }
 
   /** Where it failed is added to the exception, and every part still open is closed, the innermost first. */
-  private static void failed(Throwable thrown, Object asked, Rest rest, Around around) {
+  private static void failed(Throwable thrown, Object asked, Rest rest, Around<?> around) {
     String in = "";
-    for (Around part = around; part != null; part = part.outer) in += " " + part.handler.effect.getSimpleName();
+    for (Around<?> part = around; part != null; part = part.outer) in += " " + part.handler.effect.getSimpleName();
     thrown.addSuppressed(new Where("the program had last asked " + asked + "; handlers in force, the nearest first:"
         + (in.isEmpty() ? " none" : in)));
     close(rest, thrown);
-    for (Around part = around; part != null; part = part.outer) close(part.rest, thrown);
-  }
-
-  /**
-   * The states with this one at this depth: the same array where it is there already, or where the array is the
-   * loop's alone and has the room; else a copy, with room to grow — so parts put one in another cost the same each.
-   */
-  private static Object[] with(Object[] states, int depth, Object state, boolean alone) {
-    if (depth < states.length) {
-      if (states[depth] == state) return states;
-      if (alone) {
-        states[depth] = state;
-        return states;
-      }
-    }
-    Object[] next = Arrays.copyOf(states, Math.max(states.length, depth + 2 + (depth >> 1)));
-    next[depth] = state;
-    return next;
+    for (Around<?> part = around; part != null; part = part.outer) close(part.rest, thrown);
   }
 }
