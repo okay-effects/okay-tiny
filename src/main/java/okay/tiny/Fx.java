@@ -100,20 +100,15 @@ public final class Fx {
     return new Of<>(Objects.requireNonNull(op), null, answer, false);
   }
 
-  public static final class Handler<F, A, B, R> {
-    private final Class<F> effect;
-    private final Object state;
-    private final BiFunction<Object, Object, Object> ret;
-    private final Function<Object, Case<F, Object, B, R>> cases;
+  /**
+   * A handler of the effect F: of a part that gives A it gives B, and its clauses ask R. The type of its state is
+   * not in it: what it is around does not see the state. Made only by folding and handling.
+   */
+  public sealed interface Handler<F, A, B, R> {}
 
-    @SuppressWarnings("unchecked")
-    private <S> Handler(Class<F> effect, S state, BiFunction<S, A, B> ret, Function<F, Case<F, S, B, R>> cases) {
-      this.effect = effect;
-      this.state = state;
-      this.ret = (BiFunction<Object, Object, Object>) (BiFunction<?, ?, ?>) ret;
-      this.cases = (Function<Object, Case<F, Object, B, R>>) (Function<?, ?>) cases;
-    }
-  }
+  /** What a Handler is, with the state's type S, which Handler hides. */
+  private record Fold<F, S, A, B, R>(Class<F> effect, S state, BiFunction<S, A, B> ret,
+                                     Function<F, Case<F, S, B, R>> cases) implements Handler<F, A, B, R> {}
 
   /**
    * folding(Effect.class, state, (s, a) -> b, op -> switch (op) { case X x -> on(x, (s, k) -> ..); .. }):
@@ -121,7 +116,7 @@ public final class Fx {
    */
   public static <F, S, A, B, R> Handler<F, A, B, R> folding(Class<F> effect, S state, BiFunction<S, A, B> ret,
                                                             Function<F, Case<F, S, B, R>> cases) {
-    return new Handler<>(Objects.requireNonNull(effect, "the effect's class"), state,
+    return new Fold<>(Objects.requireNonNull(effect, "the effect's class"), state,
         Objects.requireNonNull(ret, "ret"), Objects.requireNonNull(cases, "the clauses"));
   }
 
@@ -220,7 +215,7 @@ public final class Fx {
   private record Rest(Function<Object, Object> next, boolean mapped, Object mark, Rest after) {}
 
   /** A part being run: its handler, how many parts are around it, the steps after it, and the part around it. */
-  private record Around(Handler<?, ?, ?, ?> handler, int depth, Rest rest, Around outer) {}
+  private record Around(Fold<Object, Object, Object, Object, Object> handler, int depth, Rest rest, Around outer) {}
 
   /** Where a program was when it failed: added to the exception, which is thrown on as it is. */
   public static final class Where extends RuntimeException {
@@ -266,8 +261,9 @@ public final class Fx {
           }
           case Part<?, ?, ?, ?> part -> {                     // a handler around a part of the program
             if (around != null) states = with(states, around.depth, state, states != taken);
-            around = new Around(part.handler(), around == null ? 0 : around.depth + 1, rest, around);
-            state = part.handler().state;
+            var handler = (Fold<Object, Object, Object, Object, Object>) (Handler<?, ?, ?, ?>) part.handler();
+            around = new Around(handler, around == null ? 0 : around.depth + 1, rest, around);
+            state = handler.state;
             rest = null;
             now = part.part();
             continue;
@@ -278,7 +274,7 @@ public final class Fx {
             Around own = around;
             while (own != null && !own.handler.effect.isInstance(op)) own = own.outer;
             if (own == null) throw new IllegalStateException("no handler for " + op);
-            var clause = (Of<Object, ?, Object, Object, Object>) own.handler.cases.apply(op);
+            var clause = (Of<Object, Object, Object, Object, Object>) own.handler.cases.apply(op);
             if (clause.op != null && clause.op != op) {
               throw new IllegalStateException("a clause made for " + clause.op + ", asked was " + op);
             }
