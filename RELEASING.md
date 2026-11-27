@@ -2,7 +2,8 @@
 
 Releases are a Maven repository on GitHub Pages: the `gh-pages` branch, its `maven/` directory, served at
 https://okay-effects.github.io/okay-tiny/maven. No account and no token is needed to use it, only a repository.
-One artifact, `io.github.okay-effects:okay-tiny`, with its sources and its javadoc. It has no dependency.
+Two artifacts, each with its sources and its javadoc: `io.github.okay-effects:okay-tiny`, which has no dependency,
+and `okay-tiny-direct` (the plugin of javac for direct style), which depends on it.
 
 While nobody depends on a version, a fix is released as that version again: the tag is moved and the files on
 `gh-pages` are replaced. A new number is for a change somebody would have to adapt to.

@@ -73,6 +73,12 @@ A call that is the last thing a `flatMap`'s function does — of itself or of an
 stack, no heap, for ever. With nothing asked before it, write `defer(() -> other(n - 1))`. A handler or `ensuring`
 goes around a loop, not inside it: inside, each turn is a part more, kept to the end.
 
+Direct style, with the artifact `okay-tiny-direct` and `-Xplugin:OkayDirect` (docs/direct.md): a method marked
+`@Direct` is plain Java in which `$(program)` runs a program and is its value, and `return` gives a program
+(`return pure(value)`, or a call in the tail). `$` is rewritten in a declaration, a statement, the condition and the
+branches of an `if`, a for-each, `try`-`finally`; anywhere else it is an error at its line. A variable declared
+before a `$` cannot change after it.
+
 ### Rules
 
 - Business logic is programs over declared effects. Real resources — a database, a client, a clock — are reached
@@ -107,7 +113,7 @@ goes around a loop, not inside it: inside, each turn is a part more, kept to the
 ### Pointers
 
 - `docs/guide.md` (in order, every example a test), `docs/reference.md` (every word), `docs/ports-and-adapters.md`
-  (a service with interfaces, moved), `docs/async.md` (asynchrony), `docs/spring.md` and `spring-sample/` (a Spring Boot service),
+  (a service with interfaces, moved), `docs/async.md` (asynchrony), `docs/direct.md` and `direct/` (direct style, a plugin of javac), `docs/spring.md` and `spring-sample/` (a Spring Boot service),
   `docs/machine.md` (how `run` works), `DESIGN.md` (why it is as it is); the tests
   (`ScenariosTest`: a scenario each; `Booking`: a real flow of seven effects; `src/test/negative`: what javac
   refuses).

@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 264 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 267 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -140,9 +140,15 @@ before `Part` and `Perform` it cost a counter 3 ns an operation.
 The array of states is written in place while no rest taken off has it (section 3). Before that every new part
 copied it, and parts one in another cost the square of their depth: 10^5 levels, 0.6 s; now 0.05 s.
 
+**How far these numbers hold.** They are of a machine with nothing else running. With another process busy, a
+state outermost of seven gave 33 to 41 ns from one run to the next, for this kernel and for the one before it
+alike: two kernels are compared by runs taken in turn, several of each, and by their least.
+
 ## 6. What is not here
 
-- **Direct style.** Without threads or a bytecode transformation there is none in Java; okay-java has it.
+- **Direct style, in the kernel.** Without threads or a transformation there is none in Java. It is beside the
+  kernel, as a plugin of javac that rewrites a method into the chain it stands for before its types are checked
+  (`direct/`, `docs/direct.md`): the kernel does not know of it, and what runs is `flatMap`.
 - **Cancelling, timeouts, and programs run side by side.** `Async` waits for work; it does not stop it, and two
   programs at once are two `start`.
 - **Finalizers that ask.** `ensuring(part, after)` runs a `Runnable`: it closes, and asks no operation.
@@ -154,6 +160,12 @@ copied it, and parts one in another cost the square of their depth: 10^5 levels,
   last and the handlers in force — not the path through the program.
 
 ## 7. Open
+
+The family's TCK passes (`TckTest`): a thousand random programs of logs, states, failures and choices one in
+another, and the digest of their outcomes is the reference's, `-8623788747993822161` — the same number as the
+Scala, Java and Rust kernels of okay-effects. A handler there answers only its own identity and asks the others
+again outside, which here is an ordinary clause.
+
 
 It has been tried on one real flow, a booking of seven effects that was already written with effects
 (`Booking`), and in a small Spring Boot service with a database, Spring's transactions and a controller

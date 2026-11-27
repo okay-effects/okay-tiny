@@ -351,14 +351,19 @@ public final class Fx {
         now = (Comp<?, ?>) value;
       }
     } catch (Throwable thrown) {                        // what was to be closed is closed, and it is thrown on
-      String in = "";
-      for (Around part = around; part != null; part = part.outer) in += " " + part.handler.effect.getSimpleName();
-      thrown.addSuppressed(new Where("the program had last asked " + asked + "; handlers in force, the nearest first:"
-          + (in.isEmpty() ? " none" : in)));
-      close(rest, thrown);
-      for (Around part = around; part != null; part = part.outer) close(part.rest, thrown);
+      failed(thrown, asked, rest, around);
       throw thrown;
     }
+  }
+
+  /** Where it failed is added to the exception, and every part still open is closed, the innermost first. */
+  private static void failed(Throwable thrown, Object asked, Rest rest, Around around) {
+    String in = "";
+    for (Around part = around; part != null; part = part.outer) in += " " + part.handler.effect.getSimpleName();
+    thrown.addSuppressed(new Where("the program had last asked " + asked + "; handlers in force, the nearest first:"
+        + (in.isEmpty() ? " none" : in)));
+    close(rest, thrown);
+    for (Around part = around; part != null; part = part.outer) close(part.rest, thrown);
   }
 
   /**

@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 264 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 267 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 
@@ -114,6 +114,7 @@ The order of two handlers is the order of two monads (`StdTest`): a failure insi
 | [The guide](docs/guide.md) | from nothing to an application, in order; every example is a test |
 | [From ports and adapters](docs/ports-and-adapters.md) | a service with interfaces and injection, moved in four steps |
 | [Asynchrony as an effect](docs/async.md) | one program, a handler that waits and one that does not |
+| [Direct style](docs/direct.md) | a method written as plain Java with `$(program)`, rewritten into the chain by a plugin of javac |
 | [In a Spring Boot service](docs/spring.md) | beans, a database, Spring's transactions, a controller — a sample that runs |
 | [Reference](docs/reference.md) | every type and word, what javac refuses, what it costs |
 | [The machine](docs/machine.md) | for reviewing `Fx.java` |
@@ -123,7 +124,7 @@ The order of two handlers is the order of two monads (`StdTest`): a failure insi
 ## Build
 
 ```
-./gradlew test                        # scenarios, the docs' examples, a real flow of seven effects, 24 refusals
+./gradlew test                        # scenarios, the docs' examples, 24 refusals, the TCK; the plugin; Spring
 ./gradlew jmh                         # ns an operation (JMH)
 ./gradlew jmh -Pbench=StateBench.counter
 ```
