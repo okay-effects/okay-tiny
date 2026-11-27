@@ -1,0 +1,118 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "io.github.okay-effects",
+    "module": "okay-tiny-direct",
+    "version": "0.1.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "9.1.0"
+    }
+  },
+  "variants": [
+    {
+      "name": "apiElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "io.github.okay-effects",
+          "module": "okay-tiny",
+          "version": {
+            "requires": "0.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "okay-tiny-direct-0.1.0.jar",
+          "url": "okay-tiny-direct-0.1.0.jar",
+          "size": 20432,
+          "sha512": "4d759c9df6ff493234e10ec4af14ea15c4e37bc368a33ea6174af096ed945288a53deaddf3bfaf597171a5c6b4649c2db59800fd1e942a3dcfcb10a7e3f396fb",
+          "sha256": "457a57560032a946bea7059ca8654e02610b033d806cef9b6423e449cddec7fc",
+          "sha1": "030dd919deab6b7e73d52320d22d0b1415b029aa",
+          "md5": "36530bb86bd368d47d35e2d1ec11967d"
+        }
+      ]
+    },
+    {
+      "name": "runtimeElements",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.jvm.version": 21,
+        "org.gradle.libraryelements": "jar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "io.github.okay-effects",
+          "module": "okay-tiny",
+          "version": {
+            "requires": "0.1.0"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "okay-tiny-direct-0.1.0.jar",
+          "url": "okay-tiny-direct-0.1.0.jar",
+          "size": 20432,
+          "sha512": "4d759c9df6ff493234e10ec4af14ea15c4e37bc368a33ea6174af096ed945288a53deaddf3bfaf597171a5c6b4649c2db59800fd1e942a3dcfcb10a7e3f396fb",
+          "sha256": "457a57560032a946bea7059ca8654e02610b033d806cef9b6423e449cddec7fc",
+          "sha1": "030dd919deab6b7e73d52320d22d0b1415b029aa",
+          "md5": "36530bb86bd368d47d35e2d1ec11967d"
+        }
+      ]
+    },
+    {
+      "name": "sourcesElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-tiny-direct-0.1.0-sources.jar",
+          "url": "okay-tiny-direct-0.1.0-sources.jar",
+          "size": 7551,
+          "sha512": "05f33df0e936b6071c9ea3d633bf1194db4654315899b2d49cddc77a9c6776ab569e06b398baf505aa962cb08eb74d041362dbf7d372d71db3536aa59c4588ef",
+          "sha256": "8323907060a57f3f42133e5544c81d2f5222a72ed313f6e5a883be11372a793d",
+          "sha1": "270e053be2589791cea8eac3739e385684b44579",
+          "md5": "581547b6cb43fb89fcd0559f31cc67d1"
+        }
+      ]
+    },
+    {
+      "name": "javadocElements",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "javadoc",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "okay-tiny-direct-0.1.0-javadoc.jar",
+          "url": "okay-tiny-direct-0.1.0-javadoc.jar",
+          "size": 97665,
+          "sha512": "b80a4d693f5d77b03e84d001ccaf8b814e544539eb78da81986d33e4654abd0f512cc51ff3e7b91e1600c22d97aba14446c49c98bc4d6bc6bb31a0061384ceef",
+          "sha256": "9158875eed3deafd5b0f69527330d073548a4d72b5ef3b3d9814a823bc8e83ba",
+          "sha1": "16959b63fda2935bfc1e328d6d346fd6c3d6d808",
+          "md5": "d021770c4764880821b272ab3a4589fe"
+        }
+      ]
+    }
+  ]
+}
