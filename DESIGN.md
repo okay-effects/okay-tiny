@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 273 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 264 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -96,6 +96,7 @@ One loop. The rest of the program is a stack of parts — one for each handler i
 | a block of named answers asked in rounds (`plan`) | it lived on sets of operations |
 | the state in the stack's records | a handler with a state outside six others cost 57 ns an operation, not 30 |
 | the effect's class read from an empty varargs array | see above |
+| in a rest put back, always a copy of the states with those inside copied in — without the case where nothing around has changed, which is one `clone` | a state outermost of three cost 36 ns an operation, not 30 |
 
 ## 5. What it costs
 

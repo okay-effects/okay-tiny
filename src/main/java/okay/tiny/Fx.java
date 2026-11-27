@@ -240,7 +240,7 @@ public final class Fx {
     Around around = null;                 // that part, and those around it
     Object state = null;                  // the state of that part's handler; and of those around it,
     Object[] states = {};                 //   each at its part's depth: an array never changed once it is shared,
-    boolean alone = true;                 //   and written in place while no rest taken off has it
+    Object[] taken = null;                //   and written in place unless it is the one a rest was taken off with
     Object asked = null;                  // the operation asked last
     try {
       while (true) {
@@ -263,11 +263,7 @@ public final class Fx {
             continue;
           }
           case Part<?, ?> part -> {                     // a handler around a part of the program
-            if (around != null) {
-              Object[] next = with(states, around.depth, state, alone);
-              alone |= next != states;
-              states = next;
-            }
+            if (around != null) states = with(states, around.depth, state, states != taken);
             around = new Around(part.handler(), around == null ? 0 : around.depth + 1, rest, around);
             state = part.handler().state;
             rest = null;
@@ -286,7 +282,7 @@ public final class Fx {
             }
             if (clause.clause != null) {                // the rest, to the end of the handler's part, is taken off
               K<Object, Object, Object, Object> k = new K<>(rest, around, own, states, state);
-              alone = false;
+              taken = states;
               Object its = own == around ? state : states[own.depth];
               // the clause is a program of what is around that part; under it, a mark: was the rest gone on with
               rest = clause.kept ? own.rest : new Rest(null, true, k, own.rest);
@@ -314,11 +310,7 @@ public final class Fx {
             if (rest != null && rest.mark == k) rest = rest.after;      // the clause ends with this: its mark too
             int depth = around == null ? 0 : around.depth + 1;          // of the handler's own part, as put now
             int inside = k.top.depth - k.own.depth;                     // the parts the rest has inside that one
-            if (around != null) {
-              Object[] kept = with(states, around.depth, state, alone);
-              alone |= kept != states;
-              states = kept;
-            }
+            if (around != null) states = with(states, around.depth, state, states != taken);
             if (inside > 0 || depth != k.own.depth) {   // the states inside: as they were when it asked
               Object[] next;
               if (states == k.states && depth == k.own.depth) next = states.clone(); // nothing around has changed
@@ -328,7 +320,6 @@ public final class Fx {
               }
               next[depth] = r.state();
               states = next;
-              alone = true;
             }
             state = inside > 0 ? k.state : r.state();   // its own: the next one
             boolean same = rest == k.own.rest && around == k.own.outer; // a clause that only goes on: no part anew

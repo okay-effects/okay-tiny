@@ -94,8 +94,9 @@ The innermost handler's state is a variable of the loop: for it, a new state is 
 in `states`, by depth; a new state for one of them is one copy of that array. Entering a part moves the
 innermost state into the array; leaving a part brings the next one out.
 
-The array is written in place while it is the loop's alone (`alone`), and has room to grow; it stops being
-the loop's alone when a rest is taken off with it, and is the loop's again when the loop has made a copy. So a
+The array is written in place while it is the loop's alone, and has room to grow. It is not the loop's alone
+when it is the one a rest was last taken off with (`taken`): the loop only ever goes on with that one or with a
+copy it has made since, so one reference says it. So a
 part more costs the same however many are around it, and a rest taken off still finds its states as they
 were (`ScenariosTest.theStatesOfARestTakenOffAreItsOwn`).
 
