@@ -262,11 +262,14 @@ public final class Fx {
     }
 
     /**
-     * The parts the rest was taken with, anew: each with the state it had, its own with `state` and `rest` after
-     * it, on top of the parts run now.
+     * k.apply(answer, next), reached: the parts taken off with the rest go back, anew, on top of what is run now.
+     * Those inside the handler's own have the states they had when it asked; its own has `next`, and `after` after
+     * it; those around it are the ones run now, as they are.
      */
-    private <Y, Z> Around<T, Z> onto(S state, Rest<B, Y> rest, Around<Y, Z> now) {
-      return top.anew(this, state, rest, now);
+    private <Y, Z> At<Z> back(X answer, S next, Rest<B, Y> after, Around<Y, Z> now) {
+      gone = true;
+      if (after instanceof Taken<B, Y> mark && mark.k == this) after = mark.after;    // the clause ends with this
+      return new Give<>(answer, rest, top.anew(this, next, after, now));
     }
 
     /** Its own part anew. It is the part `from` was: so the part gives what `from` gave, A. */
@@ -503,11 +506,7 @@ public final class Fx {
       }
     }
 
-    /** One node of the program is run. */
-    /**
-     * `at`: the Run this move began with, where it is still of these types — to move on in place; else none.
-     * `more`: how many nodes this move may still go into before it gives the next move its turn.
-     */
+    /** One node of the program is run. `more`: how many nodes this move may still go into. */
     private <A, Y> At<Z> run(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around, int more) {
       return switch (now) {
         case Pure<A, ?> pure -> give(pure.value(), rest, around);
@@ -522,7 +521,7 @@ public final class Fx {
       };
     }
 
-    /** The same steps and parts, another program of the same A: the Run it began with, where there is one. */
+    /** Another program, within this move or as the next. */
     private <A, Y> At<Z> on(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around, int more) {
       return more > 0 ? run(now, rest, around, more - 1) : new Run<>(now, rest, around);
     }
@@ -564,7 +563,7 @@ public final class Fx {
     /** This part answers: the operation is its handler's. */
     private <F, S, P, B, R, W, A, Y> At<Z> answer(In<F, S, P, B, R, W, Z> own, Asks<?, A> asks, Rest<A, Y> rest,
                                                   Around<Y, Z> around, int more) {
-      return switch (own.handler.cases.of(asks.op())) {
+      return switch (own.cases.of(asks.op())) {
         case Answer<?, F, S, B, R> answer -> answered(answer, asks, rest, around, more);
         case With<?, F, S, B, R> with -> taken(own, with, asks, rest, around, more);
         case Leave<F, S, B, R> leave -> left(own, leave.value, asks, rest, around);
@@ -608,20 +607,8 @@ public final class Fx {
       return new Run<>(new Pure<B, R>(value), new Taken<>(k, own.rest), own.outer);
     }
 
-    /**
-     * k.apply(answer, next): the parts taken off with the rest go back, anew, on top of what is run now. Those
-     * inside the handler's own have the states they had when it asked; its own has `next`; those around it are the
-     * ones run now, as they are.
-     */
-    private <X, S, B, R, Y> At<Z> resume(Resume<X, S, B, R> on, Rest<B, Y> rest, Around<Y, Z> around) {
-      return back(on.k(), on, rest, around);
-    }
-
-    private <X, T, S, B, R, Y> At<Z> back(K<X, T, S, B, R> k, Resume<X, S, B, R> on, Rest<B, Y> rest,
-                                          Around<Y, Z> around) {
-      k.gone = true;
-      if (rest instanceof Taken<B, Y> mark && mark.k == k) rest = mark.after;     // the clause ends with this: its mark
-      return new Give<>(on.value(), k.rest, k.onto(on.state(), rest, around));
+    private <X, S, B, Y> At<Z> resume(Resume<X, S, B, ?> on, Rest<B, Y> rest, Around<Y, Z> around) {
+      return on.k().back(on.value(), on.state(), rest, around);
     }
 
     /** A value is given to the steps: to the next of them, or — none left — to the part. */
