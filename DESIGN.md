@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 413 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 415 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -168,12 +168,12 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 | `answer`, the handler the innermost of seven | 6.0 |
 | `answer`, the handler the outermost of seven | 15.8 |
 | an answer and two `map` | 17 to 22 |
-| a counter (a state that moves on at every operation), alone | 9.5 |
-| the counter the innermost of seven | 9.4 |
+| a counter (a state that moves on at every operation), alone | 7.5 |
+| the counter the innermost of seven | 7.6 |
 | the counter the outermost of three | 11.7 |
-| the counter the outermost of seven | 17.0 |
-| a state said of `Std`'s template, alone | 13.4 |
-| that state the outermost of seven | 15.5 |
+| the counter the outermost of seven | 16.1 |
+| a state said of `Std`'s template, alone | 11.9 |
+| that state the outermost of seven | 14.6 |
 
 A free monad makes five or six small objects for an operation; that is the floor. Next to a query to a database
 it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark
@@ -231,6 +231,15 @@ and 17.6. With it went the other places where one type stood for several: a case
 once, for the operation asked, and not in each of three records; the two marks are one kind; `End` and `Top`
 are made, not one object of every type; the nodes and the handlers being put say the row they hold. Thirteen
 places were marked unchecked, and five are (`docs/machine.md` lists them).
+
+**A clause that only goes on is answered as `answer` answers.** The steps of a rest — the `Then` of what
+follows the operation — were made before its clause was called, and the answer was then given through them,
+by the loop. They are made now only where the rest is taken off or kept; a clause that only goes on gives its
+answer straight to what follows, within the move. A counter made 112 bytes an operation and makes 92; it cost
+9.0 ns and costs 7.5, a template's state 12.8 and 11.9. It goes on within the move only where the part that
+answers is the innermost: for a template's state the outermost of seven, going on within the move cost 19.5
+ns where the way back to the loop costs 14.6 (it was 15.5) — a longer move, which the JIT no longer made one
+piece of.
 
 ## 6. What is not here
 

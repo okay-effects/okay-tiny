@@ -245,15 +245,13 @@ public final class Fx {
    * are run by no one, and each time the rest goes on it goes on with parts made anew of them.
    */
   private static final class K<X, T, S, B, R> implements BiFunction<X, S, Comp<B, R>> {
-    private final Rest<X, T> rest;                   // the steps of the innermost part
+    private Rest<X, T> rest;                         // the steps of the innermost part: made when it is taken off
     private Around<T, ?> top;                        // the parts taken with it, from the innermost
     private In<?, S, ?, B, ?, ?, ?> own;             //   to the handler's own
     private In<?, S, ?, B, ?, ?, ?> made;            // its own, among parts made anew
     private boolean gone;                            // gone on with, at least once: else it was left
 
-    private K(Rest<X, T> rest, Around<T, ?> top, In<?, S, ?, B, ?, ?, ?> own) {
-      this.rest = rest; this.top = top; this.own = own;
-    }
+    private K(Around<T, ?> top, In<?, S, ?, B, ?, ?, ?> own) { this.top = top; this.own = own; }
 
     @Override public Comp<B, R> apply(X answer, S state) { return new Resume<>(this, answer, state); }
 
@@ -568,7 +566,7 @@ public final class Fx {
                                                   Around<Y, Z> around, int more) {
       return switch (own.handler.cases.of(asks.op())) {
         case Answer<?, F, S, B, R> answer -> answered(answer, asks, rest, around, more);
-        case With<?, F, S, B, R> with -> taken(own, with, asks, rest, around);
+        case With<?, F, S, B, R> with -> taken(own, with, asks, rest, around, more);
         case Leave<F, S, B, R> leave -> left(own, leave.value, asks, rest, around);
       };
     }
@@ -580,27 +578,33 @@ public final class Fx {
 
     /** A clause is given the rest, to the end of its handler's part. */
     private <X, F, S, P, B, R, W, A, Y> At<Z> taken(In<F, S, P, B, R, W, Z> own, With<X, F, S, B, R> with,
-                                                    Asks<?, A> asks, Rest<A, Y> rest, Around<Y, Z> around) {
-      Rest<X, Y> after = with.asked(asks).after(rest);
-      K<X, Y, S, B, R> k = new K<>(after, around, own);
+                                                    Asks<?, A> asks, Rest<A, Y> rest, Around<Y, Z> around,
+                                                    int more) {
+      Asks<X, A> asked = with.asked(asks);
+      K<X, Y, S, B, R> k = new K<>(around, own);
       Comp<B, R> does = with.clause().on(own.state, k);
       Resume<X, S, B, R> only = k.only(does);
-      if (only != null) {
-        // The clause only goes on with the rest: nothing was run between, so nothing is taken off or put back,
-        // and the state moves on where it is. (A rest that may be kept takes parts of its own.)
-        if (with instanceof Keep) k.keep();
-        own.state = only.state();
-        return give(only.value(), after, around);
+      boolean kept = with instanceof Keep;
+      if (only == null || kept) k.rest = asked.after(rest);         // the rest is to be had: now it has its steps
+      if (only == null) {
+        // The rest is taken off, with its parts: they are the rest's now, and run by no one. The clause is a
+        // program of what is around that part; under it, a mark: was the rest gone on with.
+        return new Run<>(does, kept ? own.rest : new Taken<>(k, own.rest), own.outer);
       }
-      // The rest is taken off, with its parts: they are the rest's now, and run by no one. The clause is a
-      // program of what is around that part; under it, a mark: was the rest gone on with.
-      return new Run<>(does, with instanceof Keep ? own.rest : new Taken<>(k, own.rest), own.outer);
+      // The clause only goes on with the rest: nothing was run between, so nothing is taken off or put back. The
+      // state moves on where it is, and the answer is given as answer(op, value) gives one. (A rest that may be
+      // kept takes parts of its own.) It goes on within this move only where the part that answers is the innermost:
+      // found further out, the move is long as it is, and going on within it was measured slower.
+      if (kept) k.keep();
+      own.state = only.state();
+      return asked.answered(this, only.value(), rest, around, own == around ? more : 0);
     }
 
     /** The part is left with a value: the rest is taken off, and nothing goes on with it. */
     private <X, F, S, P, B, R, W, A, Y> At<Z> left(In<F, S, P, B, R, W, Z> own, B value, Asks<X, A> asks,
                                                    Rest<A, Y> rest, Around<Y, Z> around) {
-      K<X, Y, S, B, R> k = new K<>(asks.after(rest), around, own);
+      K<X, Y, S, B, R> k = new K<>(around, own);
+      k.rest = asks.after(rest);
       return new Run<>(new Pure<B, R>(value), new Taken<>(k, own.rest), own.outer);
     }
 

@@ -126,7 +126,7 @@ JMH, Temurin 21, Apple silicon (`./gradlew jmh`); ns an operation:
 | | ns |
 |---|---|
 | `answer`, the handler the innermost of seven / the outermost | 6 / 16 |
-| a clause that goes on, with a state that moves on: alone / the innermost of seven / the outermost of seven | 9 / 9 / 17 |
+| a clause that goes on, with a state that moves on: alone / the innermost of seven / the outermost of seven | 8 / 8 / 16 |
 | each `map` | 5 to 8 |
 
 `DESIGN.md` has the table in full and what was given up for it.

@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 413 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 415 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 

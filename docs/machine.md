@@ -110,6 +110,10 @@ that stay outside, and why its own handler is not in force inside it.
 The mark holds `k`. When the clause ends and `k` was never applied, the rest was left, and whatever it was to
 close is closed.
 
+The clause is called first, with a `k` that has its parts and not yet its steps. If what the clause gave is
+nothing but that `k` applied, nothing is taken off: the state is set and the answer given to what follows, as
+for `answer`. Only otherwise — or for `keep` — are the steps of `C` made and put in `k`.
+
 A clause that gives nothing but its own rest gone on with — `k.apply(answer, next)` — is seen at once: nothing
 is taken off, the state is set to `next`, and `answer` goes to the steps that were there. Only another answer
 of the clause — a program of its own, the rest gone on with later or twice, the part left — takes the rest off.
