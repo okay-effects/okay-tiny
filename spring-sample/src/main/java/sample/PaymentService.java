@@ -41,10 +41,11 @@ public class PaymentService {
    */
   public String payBoth(String from, String to, long first, long second) {
     return run(Fx.<String>top().handler(handlers.clock()).handler(handlers.accounts())
-        .handle(both(from, to, first, second)));
+        .handle(both(handlers, from, to, first, second)));
   }
 
-  private <R extends Accounts & Clock> Comp<String, R> both(String from, String to, long first, long second) {
+  static <R extends Accounts & Clock> Comp<String, R> both(Handlers handlers, String from, String to, long first,
+                                                           long second) {
     Comp<Optional<Receipt>, R> one =
         Fx.<R, Optional<Receipt>>row().handler(handlers.optional())
             .handle(handlers.transactional(Payments.pay(from, to, first)));

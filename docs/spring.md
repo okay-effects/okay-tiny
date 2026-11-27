@@ -1,8 +1,9 @@
 # In a Spring Boot service
 
 okay-tiny needs nothing of Spring and Spring nothing of it. This page is what was tried, and it is all run:
-`spring-sample/` is a Spring Boot 3.5 service on Java 21 with a database (H2 through `JdbcTemplate`), Spring's
-transactions and a controller, and `PaymentServiceTest` starts the container and checks each claim below.
+`spring-sample/` is a Spring Boot 3.5 service on Java 21 with a database (H2, through `JdbcTemplate` and
+through JPA), Spring's transactions and a controller; `PaymentServiceTest` and `JpaPaymentServiceTest` start the
+container and check each claim below.
 
 ## The shape
 
@@ -12,6 +13,7 @@ transactions and a controller, and `PaymentServiceTest` starts the container and
 | `Handlers` | a `@Component` that holds `JdbcTemplate` and the transaction manager, and makes the handlers | yes |
 | `PaymentService` | a `@Service` whose methods put the handlers and `run` | yes |
 | `PaymentController` | a `@RestController` that calls the service | yes |
+| `JpaHandlers`, `JpaPaymentService` | the accounts answered through JPA: an entity, a repository | yes |
 
 Callers, the container and the controller see an ordinary service. The only new thing is inside its methods.
 
@@ -95,6 +97,34 @@ pass the proxy.
 values (`everyOperationOfAUseCaseIsInTheAuditLog`: `Balance[ann]`, `Move[ann, bob, 30]`, `Now[]`). No aspect,
 and nothing that a private method or a lambda can walk past.
 
+## JPA
+
+The accounts have a second handler, `JpaHandlers.accounts()`, over an entity `Account` and a Spring Data
+repository. `Payments` is not touched: the service puts one handler in place of the other.
+
+```java
+case Accounts.Move m -> {
+  account(m.from()).add(-m.amount());       // accounts.findById(..): an entity of the context in force
+  account(m.to()).add(m.amount());
+  yield answer(m, null);                    // nothing is saved here
+}
+```
+
+- **The persistence context is the transaction's, and so the use case's.** The handler changes two entities
+  and returns; the commit of the service method's `@Transactional` writes them, after the program has ended
+  (`entitiesAHandlerChangedAreWrittenWhenTheMethodsTransactionIsCommitted`). Every operation of the use case
+  is answered in that one context, since the machine runs on the thread that called `run`.
+- **`transactional(part)` gives a part a context of its own.** Of two payments the second changes its entities
+  and is refused: its transaction is rolled back and they are not written; the first's are
+  (`aTransactionAroundAPartIsThePersistenceContextOfThatPart`).
+- **With no transaction nothing is written**, and nothing fails: the use case gives a receipt and the balances
+  are as they were (`withNoTransactionChangedEntitiesAreNotWritten`). It is JPA's rule, the same for a service
+  without effects — but here the transaction is one line of the chain or one annotation, and easy to lose
+  when a use case is run from a new place.
+- **A rest gone on with twice** runs both ways in the one context: entities the first way changed are what
+  the second way reads. A handler like `Std.all()` over JPA needs `transactional` inside each way, or values
+  in place of entities. Not run in the sample.
+
 ## What to know
 
 - **Handlers are made for each call** here (`handlers.accounts()` in the service method). They are cheap — a
@@ -109,6 +139,6 @@ and nothing that a private method or a lambda can walk past.
   run in the sample.
 - **Reactive stacks.** A program runs on one thread and blocks where a handler blocks. On WebFlux a program
   that reaches a database belongs on a scheduler for blocking work, like any blocking call.
-- **What was not tried:** JPA and its session, `@Async`, Spring Security's method annotations, more than one
+- **What was not tried:** lazy associations read after the transaction has ended, `@Async`, Spring Security's method annotations, more than one
   data source. Nothing known stands in their way — they are bound to the thread too — but nothing here runs
   them.
