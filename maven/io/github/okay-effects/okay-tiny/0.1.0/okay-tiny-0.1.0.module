@@ -27,11 +27,11 @@
         {
           "name": "okay-tiny-0.1.0.jar",
           "url": "okay-tiny-0.1.0.jar",
-          "size": 73967,
-          "sha512": "6908fc660faa336b33e995f789aa2bd93572cb6e0bfe3f5865e7e48997cbc649e742b951b3e7c0db3cae04558996c103fb431c3105b783c6546d4210101d60f5",
-          "sha256": "a3cf925cd1f1486f93119443f71ee3cf81fc5329c4579813d3af02e0d9e00030",
-          "sha1": "6d173303a0ff61fae671e70bb265717a677a0c51",
-          "md5": "963fc73ee209b6d0419faa540d928070"
+          "size": 74801,
+          "sha512": "c35e5a0a45fbb5e65271ca0756a0f000cf300f6d107b4eeafba4396bbfbaa2851af14eb157698c2d0155bb78084d8f9f14f93332b83e8d123ef3ec22858c9c35",
+          "sha256": "52324205450453119c33663c21e8771a31ee5a9e67be833fee414184806f6d06",
+          "sha1": "427b4fe90b2b82b42beeff59f55bb4ca29ff2535",
+          "md5": "eb7fcd3f75cf9d21fdb59c8788c0645b"
         }
       ]
     },
@@ -48,11 +48,11 @@
         {
           "name": "okay-tiny-0.1.0.jar",
           "url": "okay-tiny-0.1.0.jar",
-          "size": 73967,
-          "sha512": "6908fc660faa336b33e995f789aa2bd93572cb6e0bfe3f5865e7e48997cbc649e742b951b3e7c0db3cae04558996c103fb431c3105b783c6546d4210101d60f5",
-          "sha256": "a3cf925cd1f1486f93119443f71ee3cf81fc5329c4579813d3af02e0d9e00030",
-          "sha1": "6d173303a0ff61fae671e70bb265717a677a0c51",
-          "md5": "963fc73ee209b6d0419faa540d928070"
+          "size": 74801,
+          "sha512": "c35e5a0a45fbb5e65271ca0756a0f000cf300f6d107b4eeafba4396bbfbaa2851af14eb157698c2d0155bb78084d8f9f14f93332b83e8d123ef3ec22858c9c35",
+          "sha256": "52324205450453119c33663c21e8771a31ee5a9e67be833fee414184806f6d06",
+          "sha1": "427b4fe90b2b82b42beeff59f55bb4ca29ff2535",
+          "md5": "eb7fcd3f75cf9d21fdb59c8788c0645b"
         }
       ]
     },
@@ -68,11 +68,11 @@
         {
           "name": "okay-tiny-0.1.0-sources.jar",
           "url": "okay-tiny-0.1.0-sources.jar",
-          "size": 14092,
-          "sha512": "9e7589c3f86c79336ccd7d36b9d5985fee8197aa2e16c318c12e28957b3e63797bc336c228fb1c8196444defe6ca8d3b3ffa5ea60609a7940d9f95938b273cc9",
-          "sha256": "c9d1f27aa02c313c856feb88154d86b53caf6f3bf3b51f679658b2a48202a27d",
-          "sha1": "af100494c9374ab3488cf2845a5940845919a65b",
-          "md5": "bf71d6bc5f3331f85debc48e96bb1eee"
+          "size": 14354,
+          "sha512": "de672ab1703b059bb82a017ab12f743c22009f7b51086a8bb2f2b01445b99507743dd9564c3848fdf476dafd4113858b88d851ad597bfda0bca0ec383b478cb5",
+          "sha256": "5177fa43e04e0b373c88a05a408f99ab7cf2fb58c040ed28c0d17f60f7feebd1",
+          "sha1": "c2e0ae2bab83a911dffe956e571ecce0ec166d56",
+          "md5": "b80cd3d8d88eec3969eefdb343799484"
         }
       ]
     },
@@ -88,11 +88,11 @@
         {
           "name": "okay-tiny-0.1.0-javadoc.jar",
           "url": "okay-tiny-0.1.0-javadoc.jar",
-          "size": 180139,
-          "sha512": "e7d395df96de5640d37f987170716e0f6610f919c2d9d50e0ae6d468d2fea860c7c52f25f52df2e3b4340714f7fccd8587f9b664528b49bfbf8a1b092a0330d4",
-          "sha256": "ed6df666bdd04b5042232f0be1cfc6754a4fafee185a600b198987799f6daf0a",
-          "sha1": "6e7174a0e5f14b4635ae57f60c8bea7064885aba",
-          "md5": "99048381cf329053501d01ced8548b7c"
+          "size": 180874,
+          "sha512": "0d13aadd09653df84401076d05e87e63bcf506cd8ae3345a59811c412fde1f5a47e8d89ea4c9c404849d0fe18495391aa7f28101dfcfd12692b671bed5f73dff",
+          "sha256": "2df45ddd2a9971f8ce5ef662e627bbf8a8703a1ab7ed3eb9cc68e304d4c3fdd4",
+          "sha1": "0d8a87b7bdc00bc15ffda18fd2fa308f6aabb23b",
+          "md5": "1045fe86e89763ddc14368a5c2cf4b03"
         }
       ]
     }
