@@ -236,6 +236,25 @@ class GuideTest {
     }
   }
 
+  /** The row of a boundary, said once: a program of any row that has no more than these. */
+  interface Priced<A> { <R extends Prices & Clock> Comp<A, R> program(); }
+
+  static <A> A priced(Map<String, Long> table, Priced<A> in) {
+    return run(Fx.<A>top().handler(clockAt(7)).handler(prices(table)).handle(in.program()));
+  }
+
+  static <R extends Prices> Comp<Long, R> pen() { return perform(new Prices.Price("pen")); }
+
+  static <R extends Prices & Clock> Comp<String, R> penAt() {
+    return GuideTest.<R>pen().flatMap(price -> perform(new Clock.Now()).map(at -> price + " at " + at));
+  }
+
+  @Test
+  void section12_aBoundaryWithAName() {
+    assertEquals(table.get("pen"), priced(table, GuideTest::pen));
+    assertEquals(table.get("pen") + " at 7", priced(table, GuideTest::penAt));
+  }
+
   @Test
   void section12_anEntryPoint() {
     Desk desk = new Desk(left, table);

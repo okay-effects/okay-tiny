@@ -535,6 +535,25 @@ static final class Desk {
 ```
 
 `Desk` is what a container would make and inject. `place(cart)`, the business logic, knows nothing of it.
+
+**The same handlers for many programs.** A method cannot take "a program of any row that has these effects"
+as a `Comp`: a value has one row, and the one the chain asks for is an intersection Java has no name for. An
+interface with a generic method can, and a program is given to it by a method reference:
+
+```java
+interface Priced<A> { <R extends Prices & Clock> Comp<A, R> program(); }
+
+static <A> A priced(Map<String, Long> table, Priced<A> in) {
+  return run(Fx.<A>top().handler(clockAt(7)).handler(prices(table)).handle(in.program()));
+}
+
+priced(table, GuideTest::pen);      // <R extends Prices> Comp<Long, R> pen(): fewer effects is a program of it too
+priced(table, GuideTest::penAt);
+```
+
+The row is written once, on the interface. A lambda cannot be one of these — Java's lambdas are not generic —
+so a program with arguments is a method of an object that holds them, or an anonymous class. Where the entry
+points are few, a method for each, as `Desk.place`, is shorter.
 [From ports and adapters](ports-and-adapters.md) takes a service written with interfaces to this, one port at a
 time.
 

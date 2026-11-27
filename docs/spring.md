@@ -139,6 +139,6 @@ case Accounts.Move m -> {
   run in the sample.
 - **Reactive stacks.** A program runs on one thread and blocks where a handler blocks. On WebFlux a program
   that reaches a database belongs on a scheduler for blocking work, like any blocking call.
-- **What was not tried:** lazy associations read after the transaction has ended, `@Async`, Spring Security's method annotations, more than one
-  data source. Nothing known stands in their way — they are bound to the thread too — but nothing here runs
-  them.
+- **What was not tried:** lazy associations read after the transaction has ended, `@Async`, Spring Security's
+  method annotations, more than one data source. Nothing known stands in their way — they are bound to the
+  thread too — but nothing here runs them.
