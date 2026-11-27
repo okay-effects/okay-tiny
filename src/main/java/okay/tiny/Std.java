@@ -42,7 +42,7 @@ public final class Std {
   // ---- a state: read and written. Its handler is the state monad ---------------------------------------------------
 
   /** A state of S, as the effect F. */
-  public static final class State<S, F> {
+  public static final class State<S, F> implements Template<F> {
     private sealed interface Asked<S, F> {}
     public record Get<S, F>(State<S, F> of) implements Asked<S, F>, Op<S, F> {}
     public record Put<S, F>(State<S, F> of, S state) implements Asked<S, F>, Op<Void, F> {}
@@ -78,7 +78,7 @@ public final class Std {
   // ---- a failure: the part does not go on. Its handlers are the option and the either monads -----------------------
 
   /** A failure of E, as the effect F. */
-  public static final class Fail<E, F> {
+  public static final class Fail<E, F> implements Template<F> {
     public record Raise<E, F>(Fail<E, F> of, E error) implements Op<Void, F> {}
 
     private final Class<F> effect;
@@ -112,7 +112,7 @@ public final class Std {
   // ---- something told on the way. Its handler is the writer monad --------------------------------------------------
 
   /** A stream of T, as the effect F. */
-  public static final class Emit<T, F> {
+  public static final class Emit<T, F> implements Template<F> {
     public record Tell<T, F>(Emit<T, F> of, T item) implements Op<Void, F> {}
 
     private final Class<F> effect;
@@ -138,7 +138,7 @@ public final class Std {
   // ---- something given from outside. Its handler is the reader monad -----------------------------------------------
 
   /** Something given, an E, as the effect F. */
-  public static final class Env<E, F> {
+  public static final class Env<E, F> implements Template<F> {
     public record Ask<E, F>(Env<E, F> of) implements Op<E, F> {}
 
     private final Class<F> effect;

@@ -36,8 +36,9 @@ A program of `A` can be run only with steps from `A` and parts from where those 
 machine's correctness, and javac checks it at every move.
 
 A step is one of five, a sealed type `Rest<A, Z>`: `Then` (of `flatMap`: a program of the value so far),
-`Mapping` (of `map`: a value of it), two marks the value passes — `Closing` (of `ensuring`: the part it was for
-has ended) and `Taken` (under a clause: the rest that clause was given) — and `End`, no steps, where `A` is `Z`.
+`Mapping` (of `map`: a value of it), two marks the value passes, of one kind, `Mark` — `Closing` (of
+`ensuring`: the part it was for has ended) and `Taken` (under a clause: the rest that clause was given) — and
+`End`, no steps, where `A` is `Z`.
 A part is `In<F, S, A, B, R, Y, Z>`: its handler `Fold<F, S, A, B, R>` and that handler's state `S`, together;
 the steps after the part, `Rest<B, Y>` — they take what the handler gives; and the part around it,
 `Around<Y, Z>`. `Top` is no part, where `A` is `Z`.
@@ -63,12 +64,11 @@ while (!(at instanceof Done<Z> done)) at = at.next(this);
 ```
 
 No move is left on the stack when the next begins: a program of a million steps takes a constant amount of
-the Java stack, and its depth is in `rest`. Three things keep a move from costing an object each time:
+the Java stack, and its depth is in `rest`. Two things keep a move from costing an object each time:
 
-- A `Run` moves on in place where only its program changes — an operation answered in place, `defer`. The
-  steps, the parts and `A` are the same, so it is typed as it stands.
-- An operation answered in place goes on within the same move, up to `STEPS` times: the program its answer
-  gives is run at once, with no way back to the loop between.
+- An operation answered in place, and `defer`, go on within the same move, up to `STEPS` times: the program
+  that follows is run at once, with no way back to the loop between. (A `Run` that moved on where it was, its
+  program a field written at every answer, gave nothing more once this was so, and is a record now.)
 - A value passes up to `STEPS` (four) steps within one move, and a move goes up to four nodes down into a
   program, before it gives the next its turn. The number is a constant: the stack a move takes is bounded.
 
@@ -148,10 +148,10 @@ may be *kept* while its parts go on being run (`keep`) takes parts of its own at
 - A part a rest holds is never run: the rest goes on with parts made anew of it.
 - When a program fails, what was to be closed is found from the `At` the failing move began with — or, for a
   closing that itself fails, the one after it, so that it is not run twice.
-- The places marked unchecked, and what guards each. Three are a hidden type opened by an identity: the answer
-  of a case, and the clause of one, are of the operation asked because the case was made for that very
-  operation (`made`); what a clause gave is its own rest gone on with because it is that very object
-  (`K.only`). One is a part made anew as the part it replaces (`K.its`). One is an operation as one of its
-  handler's effect, which the machine has just tested (`Fold.of`). Two are the one `End` and the one `Top`, of
-  any type. The rest are outside the machine: the phantom row in `flatMap` and `map`, and the handlers being
-  put, kept as a function of a program of any type.
+- The five places marked unchecked, and what guards each. Two are a hidden type opened by an identity: the
+  operation asked is the one a case was made for, so its answer is of the case's type (`For.asked`, the one
+  place for `answer`, `on` and `keep`); what a clause gave is its own rest gone on with because it is that
+  very object (`K.only`). One is a part made anew as the part it replaces (`K.its`). One is an operation of a
+  template as what that template made it, which the machine has just found by the object it says
+  (`OfObject.of`; a handler found by a class needs none: `Class.cast`). And one is outside the machine: the
+  row, a phantom, said anew where handlers begin to be put (`row`).

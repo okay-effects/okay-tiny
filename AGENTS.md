@@ -110,7 +110,7 @@ before a `$` cannot change after it.
   that extended `Op<.., Self>` could never bound one row.
 - A handler is found by its effect's class, and a class has no type argument. So an effect with a type
   argument is written as a template, as `Std`'s are: generic records that say what they are of (`Op.of()`: the
-  template as said for one effect), handlers found by that (`by(this, state, ret, cases)`), and each use an effect
+  template as said for one effect, a class that `implements Template<F>`), handlers found by that (`by(this, state, ret, cases)`), and each use an effect
   of its own, a type. Never one generic effect found by its class, where a
   handler of `State<String>` would answer another's `State<Integer>`.
 - `ensuring`'s `after` is a `Runnable`: it asks no operation. Do not keep a `k` past its clause (a clause made with `keep` may:

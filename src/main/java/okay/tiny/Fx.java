@@ -17,8 +17,11 @@ public final class Fx {
      * effects: the template as it was said for one effect — an object, the same in the operation and in the
      * handler made of it, which is how that handler is found. None: the handler is found by the operation's class.
      */
-    default Object of() { return null; }
+    default Template<F> of() { return null; }
   }
+
+  /** A template of effects, as it was said for one effect, F: what its operations say they are of. */
+  public interface Template<F> {}
 
   /** A program is data: A is what it gives, R the effects it may ask. */
   public sealed interface Comp<A, R> {
@@ -175,7 +178,7 @@ public final class Fx {
    */
   private sealed interface Cases<F, S, B, R> {
     /** The operation, which says it is of `of`, is this handler's. */
-    boolean has(Op<?, ?> op, Object of);
+    boolean has(Op<?, ?> op, Template<?> of);
 
     /** The clause for an operation that is. */
     Case<F, S, B, R> of(Op<?, ?> op);
@@ -184,15 +187,15 @@ public final class Fx {
   /** folding: the operations are the records of an effect's own interface, and say nothing: found by its class. */
   private record OfClass<O, F, S, B, R>(Class<O> effect, Function<O, Case<F, S, B, R>> cases)
       implements Cases<F, S, B, R> {
-    @Override public boolean has(Op<?, ?> op, Object of) { return of == null && effect.isInstance(op); }
+    @Override public boolean has(Op<?, ?> op, Template<?> of) { return of == null && effect.isInstance(op); }
     @Override public Case<F, S, B, R> of(Op<?, ?> op) { return cases.apply(effect.cast(op)); }
     @Override public String toString() { return effect.getSimpleName(); }
   }
 
   /** by: the operations are a template's, found by the object they say — the template made every one that says it. */
-  private record OfObject<O, F, S, B, R>(Object said, Function<O, Case<F, S, B, R>> cases)
+  private record OfObject<O, F, S, B, R>(Template<F> said, Function<O, Case<F, S, B, R>> cases)
       implements Cases<F, S, B, R> {
-    @Override public boolean has(Op<?, ?> op, Object of) { return of == said; }
+    @Override public boolean has(Op<?, ?> op, Template<?> of) { return of == said; }
     @SuppressWarnings("unchecked")
     @Override public Case<F, S, B, R> of(Op<?, ?> op) { return cases.apply((O) op); }
     @Override public String toString() { return said.toString(); }
@@ -213,7 +216,7 @@ public final class Fx {
    * effect F. It is found by that object, not by a class; and its clauses are given the operations as what the
    * template made them, O — the template made every operation that says `of`, which is why that is so.
    */
-  public static <O, F, S, A, B, R> Handler<F, A, B, R> by(Object of, S state, BiFunction<S, A, B> ret,
+  public static <O, F, S, A, B, R> Handler<F, A, B, R> by(Template<F> of, S state, BiFunction<S, A, B> ret,
                                                          Function<O, Case<F, S, B, R>> cases) {
     return new Fold<>(new OfObject<>(Objects.requireNonNull(of, "of"), Objects.requireNonNull(cases, "the clauses")),
         state, Objects.requireNonNull(ret, "ret"));
@@ -553,7 +556,7 @@ public final class Fx {
       Op<X, ?> op = asks.op();
       asked = op;
       if (see != null) see.accept(op);
-      Object of = op.of();                              // what it says it is of; none: its class says
+      Template<?> of = op.of();                         // what it says it is of; none: its class says
       for (Around<?, Z> at = around; at instanceof In<?, ?, ?, ?, ?, ?, Z> part; at = part.outer) {
         if (part.cases.has(op, of)) return answer(part, asks, rest, around, more);
       }

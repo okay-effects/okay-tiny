@@ -454,8 +454,9 @@ asks, and its handler is found by it. So a template said twice for one class is 
 for one: the handler of one does not answer the other (`StdTest.aTemplateSaidTwiceForOneClassIsTwoEffects`).
 Say it once, as a constant of the effect's type.
 
-A template of your own is written as these are: a class `P<T, F>` that has the effect's class; its operations,
-generic records that hold the template as `of` — which is how an operation says what it is of; the functions
+A template of your own is written as these are: a class `P<T, F>` that implements `Template<F>` and has the
+effect's class; its operations, generic records that hold the template as `of` — which is how an operation
+says what it is of; the functions
 that ask them; and the handlers, made with `by(this, state, ret, op -> ..)`: `folding` for a handler found by
 the template, whose clauses are given the template's own operations.
 

@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 424 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 413 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 
@@ -146,7 +146,7 @@ The order of two handlers is the order of two monads (`StdTest`): a failure insi
 ## Build
 
 ```
-./gradlew test                        # scenarios, the docs' examples, 24 refusals, the TCK; the plugin; Spring
+./gradlew test                        # scenarios, the docs' examples, 25 refusals, the TCK; the plugin; Spring
 ./gradlew jmh                         # ns an operation (JMH)
 ./gradlew jmh -Pbench=StateBench.counter
 ```

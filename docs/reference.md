@@ -6,7 +6,7 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 
 | Type | What it is |
 |---|---|
-| `Op<A, F>` | an operation: `A` is the type of its answer, `F` its effect. A record implements it. `of()`: what a generic record of a template is of — the template as it was said for one effect, an object; none where the record is the effect's own |
+| `Op<A, F>` | an operation: `A` is the type of its answer, `F` its effect. A record implements it. `of()`: what a generic record of a template is of — the template as it was said for one effect, a `Template<F>`; none where the record is the effect's own |
 | `Comp<A, R>` | a program: `A` is what it gives, `R` the effects it may ask |
 | `Handler<F, A, B, R>` | a handler of the effect `F`: the part it is around gives `A`, it gives `B`, its clauses ask `R` |
 | `Clause<X, S, B, R>` | what a handler does for one operation: `(state, k) -> Comp<B, R>`; `X` is the operation's answer type |
@@ -38,7 +38,8 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 | `on(op, (state, k) -> ..)` | the clause for the operation matched; `k.apply(answer, nextState)` goes on with the rest |
 | `answer(op, value)` | `on(op, (s, k) -> k.apply(value, s))`, answered where it is asked |
 | `leave(value)` | a clause for any operation of the effect: the part is left, the handler gives `value` |
-| `by(of, state, ret, cases)` | a handler found by the object `of` that its operations say (`Op.of()`), not by a class: for a template. Its clauses are given the operations as what the template made them |
+| `Template<F>` | what a template of effects is, said for the effect `F`: a marker its class implements, so that javac ties its operations and its handler to `F` |
+| `by(of, state, ret, cases)` | a handler found by the template `of` that its operations say (`Op.of()`), not by a class. Its clauses are given the operations as what the template made them |
 | `keep(op, (state, k) -> ..)` | `on` for a clause that keeps `k` to go on with it after the clause has ended, in a run of its own: the rest is not closed when the clause ends |
 
 A clause may: apply `k` once (answer); not apply it (the part is left with the clause's own value, and `ret` is
@@ -124,7 +125,7 @@ JMH, Temurin 21, Apple silicon (`./gradlew jmh`); ns an operation:
 
 | | ns |
 |---|---|
-| `answer`, the handler the innermost of seven / the outermost | 6 / 14 |
+| `answer`, the handler the innermost of seven / the outermost | 6 / 16 |
 | a clause that goes on, with a state that moves on: alone / the innermost of seven / the outermost of seven | 9 / 9 / 17 |
 | each `map` | 5 to 8 |
 

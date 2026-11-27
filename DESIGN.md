@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 424 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 413 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -61,7 +61,8 @@ what the machine is at, `At<Z>`, over `Run<A, Y, Z>`, `Give<A, Y, Z>` and `Done<
   meets any generic supertype they share: an effect cannot be made of a template by `extends`.
   So an effect is *said of* a template: `interface Count { State<Integer, Count> state = State.of(Count.class); }`.
   The type is the application's own and has no supertype, so any two are in one row; the template's operations
-  are generic records that hold what was made — `Count.state` — and say it (`Op.of()`), and the machine finds a
+  are generic records that hold what was made — `Count.state`, a `Template<Count>` — and say it (`Op.of()`),
+  and the machine finds a
   handler by what an operation says it is of, where it says, and by its class where it does not. The type of
   the state is javac's from the declaration — `State<Integer, Count>` — to every use, and it is the object's:
   an operation and its handler are of one object, so of one type. `by(of, state, ret, cases)` is `folding` for
@@ -165,12 +166,14 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 | | ns |
 |---|---|
 | `answer`, the handler the innermost of seven | 6.0 |
-| `answer`, the handler the outermost of seven | 13.7 |
+| `answer`, the handler the outermost of seven | 15.8 |
 | an answer and two `map` | 17 to 22 |
-| a counter (a state that moves on at every operation), alone | 9.4 |
+| a counter (a state that moves on at every operation), alone | 9.5 |
 | the counter the innermost of seven | 9.4 |
 | the counter the outermost of three | 11.7 |
 | the counter the outermost of seven | 17.0 |
+| a state said of `Std`'s template, alone | 13.4 |
+| that state the outermost of seven | 15.5 |
 
 A free monad makes five or six small objects for an operation; that is the floor. Next to a query to a database
 it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark
@@ -217,6 +220,17 @@ every operation and the `switch` over sealed types are what is new in that path.
 under G1 and under the parallel collector alike; the kernel before the trampoline gave the same two numbers.
 It makes 224 bytes an operation, ten gigabytes a second: it is the speed of making objects that is measured
 there, and it is not the kernel's to settle.
+
+**What a handler is found by is a type of two, not two fields of which one is empty.** A handler held a
+class and an object, one of them none, a class of no instances for the handler found by an object, and its
+clauses under a cast for both. It holds a `Cases`: `OfClass`, which gives its clauses the operation by
+`Class.cast`, or `OfObject`, with the one cast a template needs; the type the clauses take is hidden in it,
+as the state's is in `Fold`. The search asks each part `has(op, of)`, a call where there were two loads: an
+answer from the outermost of seven costs 15.8 ns, not 13.4, and a template's state 13.4 and 15.5, not 15.3
+and 17.6. With it went the other places where one type stood for several: a case's answer type is opened
+once, for the operation asked, and not in each of three records; the two marks are one kind; `End` and `Top`
+are made, not one object of every type; the nodes and the handlers being put say the row they hold. Thirteen
+places were marked unchecked, and five are (`docs/machine.md` lists them).
 
 ## 6. What is not here
 
