@@ -9,8 +9,10 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -234,6 +236,66 @@ public final class Std {
       throw wrapped;
     }
   }
+
+  // ---- the usual shapes of a program: what a loop and an `if` are in a chain. Each is a program, and nothing of
+  // its body is run when it is made. The row of a body may be less than the whole's: `? super R`.
+
+  /** The body for each item, in their order. */
+  public static <X, R> Comp<Void, R> forEach(Iterable<X> items,
+                                             Function<? super X, ? extends Comp<?, ? super R>> body) {
+    return Std.<X, Void, R>fold(items, null, (none, item) -> Std.<Object, R>of(body.apply(item)).map(done -> null));
+  }
+
+  /** What the body gives for each item, in their order. */
+  public static <X, Y, R> Comp<List<Y>, R> collect(Iterable<X> items,
+                                                   Function<? super X, ? extends Comp<Y, ? super R>> body) {
+    return Std.<X, Link<Y>, R>fold(items, null,
+        (given, item) -> Std.<Y, R>of(body.apply(item)).map(y -> new Link<>(y, given))).map(given -> {
+          List<Y> all = new ArrayList<>();
+          for (Link<Y> link = given; link != null; link = link.before()) all.add(link.last());
+          Collections.reverse(all);
+          return Collections.unmodifiableList(all);
+        });
+  }
+
+  /** A state carried through the items: each step gives the next one. */
+  public static <X, S, R> Comp<S, R> fold(Iterable<X> items, S initial,
+                                          BiFunction<? super S, ? super X, ? extends Comp<S, ? super R>> step) {
+    List<X> all = new ArrayList<>();                    // a list by index, not an iterator: a rest gone on with
+    items.forEach(all::add);                            // twice goes on from the same item twice
+    return Fx.<S, R>pure(initial).flatMap(state -> from(all, 0, state, step));
+  }
+
+  private static <X, S, R> Comp<S, R> from(List<X> items, int at, S state,
+                                           BiFunction<? super S, ? super X, ? extends Comp<S, ? super R>> step) {
+    return at == items.size() ? pure(state)
+        : Std.<S, R>of(step.apply(state, items.get(at))).flatMap(next -> from(items, at + 1, next, step));
+  }
+
+  /** A loop with no list: the step again while the state says so. */
+  public static <S, R> Comp<S, R> iterate(S initial, Predicate<? super S> goesOn,
+                                          Function<? super S, ? extends Comp<S, ? super R>> step) {
+    return Fx.<S, R>pure(initial).flatMap(state -> !goesOn.test(state) ? pure(state)
+        : Std.<S, R>of(step.apply(state)).flatMap(next -> iterate(next, goesOn, step)));
+  }
+
+  /** The program, where the condition holds; its value is not needed. */
+  public static <R> Comp<Void, R> when(boolean condition, Comp<?, ? super R> then) {
+    return condition ? Std.<Object, R>of(then).map(done -> null) : pure(null);
+  }
+
+  /** One, then the other, and a value of both. */
+  public static <A, B, C, R> Comp<C, R> zip(Comp<A, ? super R> one, Comp<B, ? super R> other,
+                                            BiFunction<? super A, ? super B, ? extends C> both) {
+    return Std.<A, R>of(one).flatMap(a -> Std.<B, R>of(other).map(b -> both.apply(a, b)));
+  }
+
+  /** What was given so far, the last first: a value, so each way of a rest gone on with twice has its own. */
+  private record Link<Y>(Y last, Link<Y> before) {}
+
+  /** A program of fewer effects is one of more as it is: the row is a phantom. */
+  @SuppressWarnings("unchecked")
+  private static <A, R> Comp<A, R> of(Comp<? extends A, ? super R> program) { return (Comp<A, R>) program; }
 
   // ----
 

@@ -73,6 +73,17 @@ handler there with `row()`.
 | `Choice` | `Of<X>` | `choose(options)` | `all()`: `List<A>` |
 | `Async` | `Await<X>` | `await(start)`, `awaitAll(starts)` | `blocking()`: `A`; `start(program)`, `start(program, see)`: runs a `Comp<A, Async>`, gives a `CompletableFuture<A>` |
 
+| The shape | |
+|---|---|
+| `forEach(items, body)` | `Comp<Void, R>`: the body for each item, in their order |
+| `collect(items, body)` | `Comp<List<Y>, R>`: what the body gave for each |
+| `fold(items, initial, step)` | `Comp<S, R>`: `step: (state, item) -> Comp<S, R>` |
+| `iterate(initial, goesOn, step)` | `Comp<S, R>`: `step` again while `goesOn(state)` |
+| `when(condition, program)` | `Comp<Void, R>` |
+| `zip(one, other, both)` | `Comp<C, R>`: one, then the other, `both(a, b)` |
+
+Items are any `Iterable`, read once into a list when the program is made. A body's row may be less than `R`.
+
 `Final<S, A>(state, value)`, `Told<X, A>(items, value)`, `Result<E, A>` = `Ok(value)` or `Failed(error)`.
 A handler that takes a class does so only to name a type javac cannot infer where the handler is put.
 

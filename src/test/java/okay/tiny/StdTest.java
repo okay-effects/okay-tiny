@@ -82,4 +82,76 @@ class StdTest {
     return Std.<Boolean, R>choose(List.of(true, false)).flatMap(way -> Std.<Integer, R>update(n -> n + 1))
         .flatMap(x -> Std.<Integer, R>get());
   }
+
+  // ---- the usual shapes of a program
+
+  static <R extends State<Integer> & Emit<String>> Comp<Integer, R> basket(List<String> items) {
+    return Std.<String, R>forEach(items, StdTest::<R>take)
+        .flatMap(x -> Std.<Integer, R>get())
+        .flatMap(sum -> Std.<R>when(sum > 5, tell("heavy")).map(x -> sum));
+  }
+
+  static <R extends State<Integer> & Emit<String>> Comp<Void, R> take(String item) {
+    return zip(tell("took " + item), update((Integer n) -> n + item.length()), (told, counted) -> null);
+  }
+
+  @Test
+  void aLoopAndAnIf() {
+    assertEquals(new Told<>(List.of("took tea", "took cup", "heavy"), new Final<>(6, 6)),
+        run(Fx.<Integer>top().handler(state(0)).handler(told(String.class)).handle(basket(List.of("tea", "cup")))));
+    assertEquals(new Told<>(List.of("took tea"), new Final<>(3, 3)),
+        run(Fx.<Integer>top().handler(state(0)).handler(told(String.class)).handle(basket(List.of("tea")))));
+  }
+
+  /** The body's row may be less than the whole's: one that only tells, in a program that also has a state. */
+  static <R extends Emit<String>> Comp<Integer, R> length(String word) {
+    return Std.<String, R>tell(word).map(x -> word.length());
+  }
+
+  static <R extends State<Integer> & Emit<String>> Comp<String, R> lengths(List<String> words) {
+    return zip(collect(words, StdTest::length), total(words), (each, sum) -> each + " = " + sum);
+  }
+
+  static <R extends State<Integer>> Comp<Integer, R> total(List<String> words) {
+    return Std.<String, Integer, R>fold(words, 0, (sum, word) -> pure(sum + word.length()))
+        .flatMap(sum -> Std.<Integer, R>put(sum).map(x -> sum));
+  }
+
+  @Test
+  void whatEachGaveAndAStateCarriedThrough() {
+    assertEquals(new Told<>(List.of("tea", "cup"), new Final<>(6, "[3, 3] = 6")),
+        run(Fx.<String>top().handler(state(0)).handler(told(String.class)).handle(lengths(List.of("tea", "cup")))));
+  }
+
+  @Test
+  void oneThenTheOtherAndAValueOfBoth() {
+    Comp<String, Env<Integer>> both = zip(Std.<Integer, Env<Integer>>ask(), Fx.<String, Env<Integer>>pure("x"),
+        (n, word) -> word + n);
+    assertEquals("x7", run(Fx.<String>top().handler(env(7)).handle(both)));
+  }
+
+  /** Nothing of a body is run when the program is made; and a long loop takes no stack. */
+  @Test
+  void aLoopIsAProgramAndTakesNoStack() {
+    var made = new java.util.ArrayList<Integer>();
+    Comp<Integer, State<Integer>> counting = iterate(0, n -> n < 200_000, n -> {
+      made.add(n);
+      return Std.<Integer, State<Integer>>update(count -> count + 1).map(x -> n + 1);
+    });
+    assertEquals(List.of(), made);
+    assertEquals(new Final<>(200_000, 200_000), run(Fx.<Integer>top().handler(state(0)).handle(counting)));
+
+    List<Integer> many = java.util.stream.IntStream.range(0, 200_000).boxed().toList();
+    Comp<List<Integer>, Object> doubled = collect(many, n -> pure(n * 2));
+    assertEquals(399_998, run(doubled).get(199_999));
+  }
+
+  /** A loop under a rest gone on with twice: each way goes through the items from where it was, with its own. */
+  @Test
+  void aLoopInEveryWay() {
+    Comp<List<String>, Choice> words = collect(List.of("a", "b"),
+        letter -> Std.<Integer, Choice>choose(List.of(1, 2)).map(digit -> letter + digit));
+    assertEquals(List.of(List.of("a1", "b1"), List.of("a1", "b2"), List.of("a2", "b1"), List.of("a2", "b2")),
+        run(Fx.<List<String>>top().handler(all()).handle(words)));
+  }
 }

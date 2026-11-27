@@ -65,6 +65,10 @@ Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).h
 (`choose(options)`; `all()`), `Async` (`await(() -> stage)`, `awaitAll(starts)`; `blocking()` — the thread waits; or
 `start(program)` for a `Comp<A, Async>` — no thread waits, a `CompletableFuture<A>`).
 
+Loops and branches, instead of a recursion each time: `forEach(items, item -> program)`, `collect(items, body)`
+(a list of what each gave), `fold(items, initial, (state, item) -> program)`, `iterate(initial, goesOn, step)`,
+`when(condition, program)`, `zip(one, other, (a, b) -> c)`.
+
 ### Rules
 
 - Business logic is programs over declared effects. Real resources — a database, a client, a clock — are reached

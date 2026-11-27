@@ -403,6 +403,36 @@ run(Fx.<String>top().handler(state(0)).handler(result(String.class)).handle(coun
 
 `Async` has a page of its own: [Asynchrony as an effect](async.md).
 
+`Std` also has the usual shapes of a program — what a loop and an `if` are in a chain — so that they are not
+written as a recursion each time:
+
+| | |
+|---|---|
+| `forEach(items, item -> program)` | the body for each item, in their order: `Comp<Void, R>` |
+| `collect(items, item -> program)` | what the body gave for each: `Comp<List<Y>, R>` |
+| `fold(items, initial, (state, item) -> program)` | a state carried through the items: `Comp<S, R>` |
+| `iterate(initial, state -> goesOn, state -> program)` | a loop with no list: the step again while the state says so |
+| `when(condition, program)` | the program where the condition holds: `Comp<Void, R>` |
+| `zip(one, other, (a, b) -> c)` | one, then the other, and a value of both |
+
+```java
+static <R extends State<Integer> & Emit<String>> Comp<Integer, R> basket(List<String> items) {
+  return Std.<String, R>forEach(items, StdTest::<R>take)
+      .flatMap(x -> Std.<Integer, R>get())
+      .flatMap(sum -> Std.<R>when(sum > 5, tell("heavy")).map(x -> sum));
+}
+
+static <R extends State<Integer> & Emit<String>> Comp<Void, R> take(String item) {
+  return zip(tell("took " + item), update((Integer n) -> n + item.length()), (told, counted) -> null);
+}
+```
+
+Each is a program: nothing of a body is run when it is made, and a long loop takes no stack. A body may ask
+less than the whole does (`length` only tells; `lengths` also has a state). Under a rest gone on with twice
+each way goes through the items from where it was, with what it had collected (`StdTest.aLoopInEveryWay`).
+Where one of them is what a method returns, javac infers its types; where a chain begins with it, they are
+said, as with the effects below.
+
 These effects have type arguments, and that costs one thing: where a chain begins with one of them, the types
 are said — `Std.<Integer, R>update(n -> n + 1).flatMap(..)`.
 
