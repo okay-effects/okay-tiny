@@ -456,8 +456,8 @@ Say it once, as a constant of the effect's type.
 
 A template of your own is written as these are: a class `P<T, F>` that has the effect's class; its operations,
 generic records that hold the template as `of` — which is how an operation says what it is of; the functions
-that ask them; and the handlers, made with `folding` for that class and found by the template: `by(this,
-folding(..))`.
+that ask them; and the handlers, made with `by(this, state, ret, op -> ..)`: `folding` for a handler found by
+the template, whose clauses are given the template's own operations.
 
 Two effects have no type argument and are used as they are:
 

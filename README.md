@@ -89,7 +89,7 @@ a value, never replayed). Its state is a value too: a rest gone on with twice ha
 
 ## The usual effects
 
-[`Std.java`](src/main/java/okay/tiny/Std.java), 227 lines beside the kernel and written only with what it gives:
+[`Std.java`](src/main/java/okay/tiny/Std.java), 218 lines beside the kernel and written only with what it gives:
 each effect with the handler that is its monad.
 
 A state, a failure, something told and something given are **templates** of effects. An application says an

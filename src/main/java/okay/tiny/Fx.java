@@ -166,15 +166,14 @@ public final class Fx {
   public sealed interface Handler<F, A, B, R> {}
 
   /** What a Handler is, with the state's type S, which Handler hides. */
-  private record Fold<F, S, A, B, R>(Class<F> effect, Object of, S state, BiFunction<S, A, B> ret,
+  private record Fold<F, S, A, B, R>(Class<?> effect, Object of, S state, BiFunction<S, A, B> ret,
                                      Function<F, Case<F, S, B, R>> cases) implements Handler<F, A, B, R> {
     /** The operation as one of this handler's effect: it is of it, the machine has just found the handler by that. */
     @SuppressWarnings("unchecked")
     private F own(Op<?, ?> op) { return (F) op; }
 
-    private Handler<F, A, B, R> by(Object of) {
-      return new Fold<>(effect, Objects.requireNonNull(of, "of"), state, ret, cases);
-    }
+    /** What it is found by, said for a reader. */
+    private String name() { return of != null ? of.toString() : effect.getSimpleName(); }
   }
 
   /**
@@ -188,14 +187,19 @@ public final class Fx {
   }
 
   /**
-   * The same handler, of the operations that say they are of `of` (Op.of): those of a template of effects, said for
-   * the effect F. It is found by that object, not by the class of its effect.
+   * A handler of the operations that say they are of `of` (Op.of): those of a template of effects, said for the
+   * effect F. It is found by that object, not by a class; and its clauses are given the operations as what the
+   * template made them, O — the template made every operation that says `of`, which is why that is so.
    */
-  public static <F, A, B, R> Handler<F, A, B, R> by(Object of, Handler<F, A, B, R> handler) {
-    return switch (handler) {
-      case Fold<F, ?, A, B, R> fold -> fold.by(of);
-    };
+  @SuppressWarnings("unchecked")
+  public static <O, F, S, A, B, R> Handler<F, A, B, R> by(Object of, S state, BiFunction<S, A, B> ret,
+                                                         Function<O, Case<F, S, B, R>> cases) {
+    return new Fold<>(Nothing.class, Objects.requireNonNull(of, "of"), state, Objects.requireNonNull(ret, "ret"),
+        (Function<F, Case<F, S, B, R>>) (Function<?, ?>) Objects.requireNonNull(cases, "the clauses"));
   }
+
+  /** The class of a handler that is found by an object: no operation is of it. */
+  private static final class Nothing {}
 
   /** A handler with no state that gives what its part gives: handling(Effect.class, op -> switch (op) { .. }). */
   public static <F, B, R> Handler<F, B, B, R> handling(Class<F> effect, Function<F, Case<F, Void, B, R>> cases) {
@@ -546,7 +550,7 @@ public final class Fx {
       Object of = op.of();                              // what it says it is of; none: its class says
       Around<?, Z> own = around;
       while (own instanceof In<?, ?, ?, ?, ?, ?, Z> part) {
-        if (of == null ? part.handler.effect.isInstance(op) && part.handler.of == null : part.handler.of == of) {
+        if (of == null ? part.handler.effect.isInstance(op) : part.handler.of == of) {
           return answer(part, asks, op, at, rest, around);
         }
         own = part.outer;
@@ -664,7 +668,7 @@ public final class Fx {
     private void close(Throwable thrown, Rest<?, ?> rest, Around<?, Z> around) {
       String in = "";
       for (Around<?, ?> at = around; at instanceof In<?, ?, ?, ?, ?, ?, ?> part; at = part.outer) {
-        in += " " + part.handler.effect.getSimpleName();
+        in += " " + part.handler.name();
       }
       thrown.addSuppressed(new Where("the program had last asked " + asked + "; handlers in force, the nearest first:"
           + (in.isEmpty() ? " none" : in)));

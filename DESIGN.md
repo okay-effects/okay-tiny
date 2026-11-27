@@ -64,7 +64,9 @@ what the machine is at, `At<Z>`, over `Run<A, Y, Z>`, `Give<A, Y, Z>` and `Done<
   are generic records that hold what was made — `Count.state` — and say it (`Op.of()`), and the machine finds a
   handler by what an operation says it is of, where it says, and by its class where it does not. The type of
   the state is javac's from the declaration — `State<Integer, Count>` — to every use, and it is the object's:
-  an operation and its handler are of one object, so of one type. A template said twice for one class is two
+  an operation and its handler are of one object, so of one type. `by(of, state, ret, cases)` is `folding` for
+  such a handler: its clauses are given the operations as what the template made them, and the one cast that
+  says so is in the kernel, beside the search that makes it true. A template said twice for one class is two
   effects, and the handler of one does not answer the other: what javac cannot see there is a missing handler,
   not a wrong type. (First the operations held the effect's class, and two sayings of two types were one
   effect to the machine; a table of the classes said, kept to refuse the second, was taken out.)

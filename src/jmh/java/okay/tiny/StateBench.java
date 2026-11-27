@@ -56,4 +56,22 @@ public class StateBench {
         .handler(first()).handler(stock(Map.of())).handler(priced())
         .handler(counting()).handler(first()).handle(ask(N, 0)));
   }
+
+  // ---- an effect said of Std's template, against the counter written by hand: one operation a turn, each a
+  // clause that goes on with a new state
+
+  interface Tick { Std.State<Integer, Tick> state = Std.State.of(Tick.class); }
+
+  static <R extends Tick> Comp<Integer, R> ticks(int left) {
+    return left == 0 ? Tick.state.get() : Tick.state.put(left).flatMap(done -> ticks(left - 1));
+  }
+
+  @Benchmark public Object templateAlone() {
+    return run(Fx.<Std.Final<Integer, Integer>>top().handler(Tick.state.from(0)).handle(ticks(N)));
+  }
+  @Benchmark public Object templateOutermostOfSeven() {
+    return run(Fx.<Std.Final<Integer, Integer>>top().handler(Tick.state.from(0)).handler(clockAt(2))
+        .handler(first()).handler(stock(Map.of())).handler(priced())
+        .handler(clockAt(1)).handler(first()).handle(ticks(N)));
+  }
 }

@@ -39,10 +39,6 @@ public final class Std {
   // template as it was said for Count, Count.state — the same object in the operation and in the handler made of
   // it. So the machine finds Count's handler for Count's operations, whatever other state is in force.
 
-  /** An operation of F as one of the template that F was said of: the machine found the handler by that. */
-  @SuppressWarnings("unchecked")
-  private static <T> T asked(Object op) { return (T) op; }
-
   // ---- a state: read and written. Its handler is the state monad ---------------------------------------------------
 
   /** A state of S, as the effect F. */
@@ -69,10 +65,10 @@ public final class Std {
 
     /** Its handler: the part is run from this state, and gives its value with the state it ended in. */
     public <A, R> Handler<F, A, Final<S, A>, R> from(S initial) {
-      return by(this, folding(effect, initial, Final::new, op -> switch (Std.<Asked<S, F>>asked(op)) {
+      return by(this, initial, Final::new, (Asked<S, F> op) -> switch (op) {
         case Get<S, F> get -> on(get, (s, k) -> k.apply(s, s));
         case Put<S, F> put -> on(put, (s, k) -> k.apply(null, put.state()));
-      }));
+      });
     }
   }
 
@@ -99,12 +95,12 @@ public final class Std {
     }
 
     public <A, R> Handler<F, A, Optional<A>, R> option() {
-      return by(this, folding(effect, null, (s, a) -> Optional.of(a), op -> leave(Optional.empty())));
+      return by(this, null, (s, a) -> Optional.of(a), (Raise<E, F> raise) -> leave(Optional.empty()));
     }
 
     public <A, R> Handler<F, A, Result<E, A>, R> result() {
-      return by(this, folding(effect, null, (s, a) -> new Result.Ok<>(a),
-          op -> leave(new Result.Failed<>(Std.<Raise<E, F>>asked(op).error()))));
+      return by(this, null, (s, a) -> new Result.Ok<>(a),
+          (Raise<E, F> raise) -> leave(new Result.Failed<>(raise.error())));
     }
   }
 
@@ -131,10 +127,8 @@ public final class Std {
 
     /** Its handler: the part's value, with what it told. */
     public <A, R> Handler<F, A, Told<T, A>, R> told() {
-      return by(this, folding(effect, List.<T>of(), Told::new, op -> {
-        Tell<T, F> tell = asked(op);
-        return on(tell, (items, k) -> k.apply(null, plus(items, tell.item())));
-      }));
+      return by(this, List.<T>of(), Told::new,
+          (Tell<T, F> tell) -> on(tell, (items, k) -> k.apply(null, plus(items, tell.item()))));
     }
   }
 
@@ -159,7 +153,7 @@ public final class Std {
 
     /** Its handler: every ask is answered with this. */
     public <A, R> Handler<F, A, A, R> given(E value) {
-      return by(this, handling(effect, op -> answer(Std.<Ask<E, F>>asked(op), value)));
+      return by(this, null, (none, a) -> a, (Ask<E, F> ask) -> answer(ask, value));
     }
   }
 
@@ -346,10 +340,6 @@ public final class Std {
   private static <A, R> Comp<A, R> of(Comp<? extends A, ? super R> program) { return (Comp<A, R>) program; }
 
   // ----
-
-  /** The class of an effect with type arguments, as the class of that effect of those arguments. */
-  @SuppressWarnings("unchecked")
-  private static <F> Class<F> of(Class<?> effect) { return (Class<F>) effect; }
 
   private static <X> List<X> plus(List<X> items, X item) {
     List<X> more = new ArrayList<>(items);

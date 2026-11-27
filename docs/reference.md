@@ -38,7 +38,7 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 | `on(op, (state, k) -> ..)` | the clause for the operation matched; `k.apply(answer, nextState)` goes on with the rest |
 | `answer(op, value)` | `on(op, (s, k) -> k.apply(value, s))`, answered where it is asked |
 | `leave(value)` | a clause for any operation of the effect: the part is left, the handler gives `value` |
-| `by(of, handler)` | the same handler, found by the object `of` that its operations say (`Op.of()`), not by the class of its effect: for a template |
+| `by(of, state, ret, cases)` | a handler found by the object `of` that its operations say (`Op.of()`), not by a class: for a template. Its clauses are given the operations as what the template made them |
 | `keep(op, (state, k) -> ..)` | `on` for a clause that keeps `k` to go on with it after the clause has ended, in a run of its own: the rest is not closed when the clause ends |
 
 A clause may: apply `k` once (answer); not apply it (the part is left with the clause's own value, and `ret` is
