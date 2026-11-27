@@ -246,9 +246,8 @@ public final class Fx {
    */
   private static final class K<X, T, S, B, R> implements BiFunction<X, S, Comp<B, R>> {
     private Rest<X, T> rest;                         // the steps of the innermost part: made when it is taken off
-    private Around<T, ?> top;                        // the parts taken with it, from the innermost
-    private In<?, S, ?, B, ?, ?, ?> own;             //   to the handler's own
-    private In<?, S, ?, B, ?, ?, ?> made;            // its own, among parts made anew
+    private final Around<T, ?> top;                  // the parts taken with it, from the innermost
+    private final In<?, S, ?, B, ?, ?, ?> own;       //   to the handler's own
     private boolean gone;                            // gone on with, at least once: else it was left
 
     private K(Around<T, ?> top, In<?, S, ?, B, ?, ?, ?> own) { this.top = top; this.own = own; }
@@ -276,27 +275,18 @@ public final class Fx {
     @SuppressWarnings("unchecked")
     private <F, P, Q, A, Y, Z> Around<A, Z> its(In<F, S, P, B, Q, ?, ?> own, S state, Rest<B, Y> rest,
                                                 Around<Y, Z> now) {
-      In<F, S, P, B, Q, Y, Z> anew = new In<>(own.handler, state, rest, now);
-      made = anew;
-      return (Around<A, Z>) anew;
-    }
-
-    /** For a rest that is kept while its parts go on being run: parts of its own, with the states as they are. */
-    private void keep() { keep(own); }
-
-    private <Y, Z> void keep(In<?, S, ?, B, ?, Y, Z> own) {
-      top = top.anew(this, own.state, own.rest, own.outer);
-      this.own = made;
+      return (Around<A, Z>) new In<F, S, P, B, Q, Y, Z>(own.handler, state, rest, now);
     }
 
     /** The rest is left: what it was to close is closed, the innermost first. */
-    private void left(Throwable thrown) {
-      close(rest, thrown);
-      Around<?, ?> part = top;
-      while (part != own && part instanceof In<?, ?, ?, ?, ?, ?, ?> inside) {
-        close(inside.rest, thrown);
-        part = inside.outer;
-      }
+    private void left(Throwable thrown) { close(rest, top, own, thrown); }
+  }
+
+  /** Closes what these steps were to close, and then those of the parts from `from` out to `until`, not of it. */
+  private static void close(Rest<?, ?> steps, Around<?, ?> from, Around<?, ?> until, Throwable thrown) {
+    close(steps, thrown);
+    for (Around<?, ?> at = from; at != until && at instanceof In<?, ?, ?, ?, ?, ?, ?> part; at = part.outer) {
+      close(part.rest, thrown);
     }
   }
 
@@ -582,21 +572,20 @@ public final class Fx {
       Asks<X, A> asked = with.asked(asks);
       K<X, Y, S, B, R> k = new K<>(around, own);
       Comp<B, R> does = with.clause().on(own.state, k);
-      Resume<X, S, B, R> only = k.only(does);
-      boolean kept = with instanceof Keep;
-      if (only == null || kept) k.rest = asked.after(rest);         // the rest is to be had: now it has its steps
-      if (only == null) {
-        // The rest is taken off, with its parts: they are the rest's now, and run by no one. The clause is a
-        // program of what is around that part; under it, a mark: was the rest gone on with.
-        return new Run<>(does, kept ? own.rest : new Taken<>(k, own.rest), own.outer);
+      Resume<X, S, B, R> only = with instanceof Keep ? null : k.only(does);
+      if (only != null) {
+        // The clause only goes on with the rest: nothing was run between, so nothing is taken off or put back. The
+        // state moves on where it is, and the answer is given as answer(op, value) gives one. It goes on within
+        // this move only where the part that answers is the innermost: found further out, the move is long as it
+        // is, and going on within it was measured slower.
+        own.state = only.state();
+        return asked.answered(this, only.value(), rest, around, own == around ? more : 0);
       }
-      // The clause only goes on with the rest: nothing was run between, so nothing is taken off or put back. The
-      // state moves on where it is, and the answer is given as answer(op, value) gives one. (A rest that may be
-      // kept takes parts of its own.) It goes on within this move only where the part that answers is the innermost:
-      // found further out, the move is long as it is, and going on within it was measured slower.
-      if (kept) k.keep();
-      own.state = only.state();
-      return asked.answered(this, only.value(), rest, around, own == around ? more : 0);
+      // The rest is taken off, with its parts: they are the rest's now, and run by no one — so a rest that is kept
+      // always is. The clause is a program of what is around that part; under it, unless the rest is kept, a mark:
+      // was the rest gone on with.
+      k.rest = asked.after(rest);
+      return new Run<>(does, with instanceof Keep ? own.rest : new Taken<>(k, own.rest), own.outer);
     }
 
     /** The part is left with a value: the rest is taken off, and nothing goes on with it. */
@@ -670,10 +659,7 @@ public final class Fx {
       }
       thrown.addSuppressed(new Where("the program had last asked " + asked + "; handlers in force, the nearest first:"
           + (in.isEmpty() ? " none" : in)));
-      Fx.close(rest, thrown);
-      for (Around<?, ?> at = around; at instanceof In<?, ?, ?, ?, ?, ?, ?> part; at = part.outer) {
-        Fx.close(part.rest, thrown);
-      }
+      Fx.close(rest, around, null, thrown);
     }
   }
 }

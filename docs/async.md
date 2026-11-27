@@ -66,15 +66,13 @@ too.
 ## How it is made
 
 Under `blocking()` the clause is `answer(op, ..)` after a `join`. Under `start` the handler is a fold whose
-result is a `CompletableFuture`, and its one clause keeps the rest:
+result is a `CompletableFuture`, and its clause, where there is something to wait for, keeps the rest:
 
 ```java
-keep(await, (s, k) -> {
-  List<CompletableFuture<X>> started = started(await);
-  CompletableFuture<Void> all = all(started);
-  if (all.isDone()) return k.apply(started, null);                          // it goes on where it is
-  return pure(all.thenCompose(done -> run(k.apply(started, null), see)));   // the rest, in a run of its own
-});
+List<CompletableFuture<X>> started = started(await);
+CompletableFuture<Void> all = all(started);
+if (all.isDone()) return answer(await, started);          // nothing to wait for: answered where it is asked
+return keep(await, (s, k) -> pure(all.thenCompose(done -> run(k.apply(started, null), see))));   // in a run of its own
 ```
 
 `k` is a value, so it can be handed to a callback; and the rest of a part of the outermost handler asks nothing,

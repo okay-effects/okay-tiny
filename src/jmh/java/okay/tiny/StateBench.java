@@ -92,4 +92,12 @@ public class StateBench {
   @Benchmark public Object byHandAlone() {
     return run(Fx.<Std.Final<Integer, Integer>>top().handler(cell(0)).handle(cells(N)));
   }
+
+  // a wait for what is already there: a rest that is kept, and gone on with at once
+  static Comp<Long, Std.Async> waits(int left, long sum) {
+    return left == 0 ? pure(sum)
+        : Std.<Long, Std.Async>await(() -> java.util.concurrent.CompletableFuture.completedFuture(1L))
+            .flatMap(one -> waits(left - 1, sum + one));
+  }
+  @Benchmark public Object awaitDone() { return Std.start(waits(N, 0)).join(); }
 }

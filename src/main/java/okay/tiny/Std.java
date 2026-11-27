@@ -242,12 +242,11 @@ public final class Std {
 
   private static <X, A> Case<Async, Void, CompletableFuture<A>, Object> later(Async.Await<X> await,
                                                                               Consumer<? super Op<?, ?>> see) {
-    return keep(await, (s, k) -> {
-      List<CompletableFuture<X>> started = started(await);
-      CompletableFuture<Void> all = all(started);
-      if (all.isDone()) return k.apply(started, null);            // nothing to wait for: it goes on where it is
-      return pure(all.thenCompose(done -> run(k.apply(started, null), see)));     // the rest, in a run of its own
-    });
+    List<CompletableFuture<X>> started = started(await);
+    CompletableFuture<Void> all = all(started);
+    if (all.isDone()) return answer(await, started);              // nothing to wait for: answered where it is asked
+    // else the rest is kept, and goes on in a run of its own
+    return keep(await, (s, k) -> pure(all.thenCompose(done -> run(k.apply(started, null), see))));
   }
 
   /** Each started; one that throws where it starts is a stage that failed. */

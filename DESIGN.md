@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 411 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 397 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -234,7 +234,7 @@ places were marked unchecked, and five are (`docs/machine.md` lists them).
 
 **A clause that only goes on is answered as `answer` answers.** The steps of a rest — the `Then` of what
 follows the operation — were made before its clause was called, and the answer was then given through them,
-by the loop. They are made now only where the rest is taken off or kept; a clause that only goes on gives its
+by the loop. They are made now only where the rest is taken off; a clause that only goes on gives its
 answer straight to what follows, within the move. A counter made 112 bytes an operation and makes 92; it cost
 9.0 ns and costs 7.5, a template's state 12.8 and 11.9. It goes on within the move only where the part that
 answers is the innermost: for a template's state the outermost of seven, going on within the move cost 19.5
@@ -246,6 +246,13 @@ where the counter makes 92, and that is not the template: the same program over 
 found by its class (`StateBench.byHandAlone`) makes 172 and takes the same time within what a run varies by.
 The difference from the counter is the program's — an operation that holds a boxed value, a clause that
 reads it, a handler of two operations and not one.
+
+**A rest that is kept is always taken off.** Where a clause made with `keep` went on with its rest at once,
+the machine went on in place and gave the rest copies of its parts, lest the ones being run change under it:
+a second way to hold parts, with two fields and three methods of its own in `K`. A kept rest now goes the one
+way every rest taken off goes, and nothing a rest holds is ever run. It costs that path 12 ns — and `Std`'s
+asynchrony, the one place that went that way, does not: with nothing to wait for it answers with `answer`
+(`StateBench.awaitDone`: 43 ns before and after).
 
 ## 6. What is not here
 

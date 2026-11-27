@@ -112,7 +112,7 @@ close is closed.
 
 The clause is called first, with a `k` that has its parts and not yet its steps. If what the clause gave is
 nothing but that `k` applied, nothing is taken off: the state is set and the answer given to what follows, as
-for `answer`. Only otherwise — or for `keep` — are the steps of `C` made and put in `k`.
+for `answer` — unless the rest is kept (`keep`). Only otherwise are the steps of `C` made and put in `k`.
 
 A clause that gives nothing but its own rest gone on with — `k.apply(answer, next)` — is seen at once: nothing
 is taken off, the state is set to `next`, and `answer` goes to the steps that were there. Only another answer
@@ -141,8 +141,9 @@ clause that goes on with `k.apply(answer, next)` — is written there, whichever
 outermost cost the same.
 
 It may be written in place because a part that is run is the machine's alone. A rest taken off takes its parts
-with it, and the machine goes on with those around; a rest gone on with is given parts made anew. Only a rest that
-may be *kept* while its parts go on being run (`keep`) takes parts of its own at once
+with it, and the machine goes on with those around; a rest gone on with is given parts made anew. A rest that
+is *kept* (`keep`) is always taken off, also where its clause goes on with it at once: so no rest ever holds a
+part that is being run
 (`ScenariosTest.theStatesOfARestTakenOffAreItsOwn`, `partsDeepOneInAnotherKeepTheirStatesOnEveryWay`).
 
 ## What to check when reading it
