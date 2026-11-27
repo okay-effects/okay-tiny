@@ -30,7 +30,7 @@ public final class Fx {
 
   record Pure<A, R>(A value) implements Comp<A, R> {}
   record Mapped<X, A, R>(Comp<X, R> first, Function<? super X, ? extends A> f) implements Comp<A, R> {}
-  record Perform<A, R>(Op<?, ?> op) implements Comp<A, R> {}
+  record Perform<A, R>(Op<A, ? super R> op) implements Comp<A, R> {}
   record FlatMap<X, A, R>(Comp<X, R> first, Function<? super X, ? extends Comp<A, R>> next) implements Comp<A, R> {}
   record Part<A, R>(Handler<?, ?, ?, ?> handler, Comp<?, ?> part) implements Comp<A, R> {}
   record Resume<A, R>(K<?, ?, ?, ?> k, Object value, Object state) implements Comp<A, R> {}
