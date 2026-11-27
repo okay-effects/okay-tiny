@@ -195,3 +195,12 @@ It has been tried on one real flow, a booking of seven effects that was already 
 thread that called `run`, so what Spring binds to a thread is where the handlers expect it, and `ensuring` was
 enough for a transaction around a part. It has not been tried on a large code base, with JPA, or by a team.
 Those are the next things to learn from.
+
+**A rest typed by less than it asks.** Handlers are put innermost first, so a handler's clauses, and the rest
+`k` they are given, are typed with the row outside all the handlers put together. The rest still asks the
+effects of the handlers between. A clause that runs its rest by itself — `Fx.run(k.apply(x, s))`, in a handler
+declared with an empty row and put inside a handler of the clock — compiles, and fails with *no handler for
+Now* (found 2026-11-27 while writing chapter 3j of the effects book). The book's small kernel
+(`effects-book/code/java/rows/Fx.java`) closes it by putting handlers outermost first, each with exactly the
+row around it, `Handler<? super V, ?, P, A, W>`. Here that would change the order of every `handler(..)` chain:
+not done.
