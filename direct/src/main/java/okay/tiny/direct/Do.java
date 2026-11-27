@@ -22,7 +22,16 @@ public final class Do {
    */
   @SuppressWarnings("unchecked")
   public static <A, B, R> Comp<B, R> bind(Comp<A, ? super R> first,
-                                         Function<? super A, ? extends Comp<B, ? super R>> next) {
+                                           Function<? super A, ? extends Comp<B, ? super R>> next) {
     return ((Comp<A, R>) first).flatMap(a -> (Comp<B, R>) next.apply(a));
+  }
+
+  /** A row, as a type alone: no value is of it. The plugin gives a method's to every bind of that method. */
+  public interface Row<R> {}
+
+  /** bind, told its row: what javac refuses of `first` it then refuses there. */
+  public static <A, B, R> Comp<B, R> bindIn(Row<R> row, Comp<A, ? super R> first,
+                                           Function<? super A, ? extends Comp<B, ? super R>> next) {
+    return bind(first, next);
   }
 }

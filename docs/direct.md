@@ -74,8 +74,10 @@ And javac's own, of what was written:
 - `local variables referenced from a lambda expression must be final or effectively final` — a variable changed
   after a `$` that was declared before it. What follows a `$` is the body of a function: a variable declared
   before it cannot change after it. Declare it after the last `$`, or carry it in a `fold`.
-- `inference variable R has incompatible bounds` — an effect the row has not. It is said at the method's
-  `@Direct`, not at the `$`: the body is one expression to javac.
+- `method bindIn in class Do cannot be applied to given types … inference variable R has incompatible bounds`
+  — an effect the row has not, said at the `$` that asks it; the effect is among the `upper bounds` javac lists.
+  It is said there because the plugin gives every step the method's row (the second argument of the `Comp` it
+  returns) as a type, so a step does not infer its row from the steps around it.
 - `@Direct: the method ends here with no program` — a path that ends without `return`.
 
 ## Worth knowing

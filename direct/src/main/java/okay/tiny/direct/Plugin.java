@@ -31,6 +31,7 @@ import com.sun.tools.javac.tree.JCTree.JCStatement;
 import com.sun.tools.javac.tree.JCTree.JCSwitchExpression;
 import com.sun.tools.javac.tree.JCTree.JCThrow;
 import com.sun.tools.javac.tree.JCTree.JCTry;
+import com.sun.tools.javac.tree.JCTree.JCTypeApply;
 import com.sun.tools.javac.tree.JCTree.JCVariableDecl;
 import com.sun.tools.javac.tree.TreeCopier;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -92,6 +93,7 @@ public final class Plugin implements com.sun.source.util.Plugin {
     private final JCCompilationUnit unit;
     private int fresh;
     private JCMethodDecl method;               // the one being rewritten
+    private Name row;                          // the variable that has its row for a type; none: the row is not said
 
     Rewrite(TreeMaker make, Names names, Trees trees, JCCompilationUnit unit) {
       this.make = make; this.names = names; this.trees = trees; this.unit = unit;
@@ -99,9 +101,25 @@ public final class Plugin implements com.sun.source.util.Plugin {
 
     void method(JCMethodDecl method, JCAnnotation direct) {
       this.method = method;
+      JCTypeApply gives = method.restype instanceof JCTypeApply said && said.arguments.size() == 2 ? said : null;
+      row = gives == null ? null : names.fromString("$row");
       List<JCStatement> body = block(method.body.stats, false);
-      method.body.stats = List.of(make.at(method.body.pos).Return(
-          call(direct.pos, "okay.tiny.Fx.defer", lambda(direct.annotationType.pos, List.nil(), body))));
+      if (row != null) {
+        // The method's row, as the type of a variable every bind is given: so a bind is told its row and does not
+        // infer it — and a program whose effect the row has not is refused at its own $, not at the method.
+        make.at(method.body.pos);
+        JCExpression rowOf = make.TypeApply(name("okay.tiny.direct.Do.Row"),
+            List.of(new TreeCopier<Void>(make).copy(gives.arguments.get(1))));
+        body = body.prepend(make.VarDef(make.Modifiers(Flags.FINAL), row, rowOf, make.Literal(TypeTag.BOT, null)));
+      }
+      // The whole body is put off. The types of that are said, as the method says them, where it says both: then
+      // what javac refuses inside — an effect the row has not — it refuses at the $ that asked it, not here.
+      List<JCExpression> types = method.restype instanceof JCTypeApply said && said.arguments.size() == 2
+          ? new TreeCopier<Void>(make).copy(said.arguments) : List.nil();
+      make.at(direct.pos);
+      JCExpression whole = make.Apply(types, name("okay.tiny.Fx.defer"),
+          List.of(lambda(direct.annotationType.pos, List.nil(), body)));
+      method.body.stats = List.of(make.at(method.body.pos).Return(whole));
     }
 
     // Every tree made here that javac may meet as an argument — a call, a lambda with its types said or with no
@@ -241,7 +259,9 @@ public final class Plugin implements com.sun.source.util.Plugin {
     }
 
     private JCExpression bind(int pos, int lambdaPos, JCExpression first, JCVariableDecl as, List<JCStatement> then) {
-      return call(pos, "okay.tiny.direct.Do.bind", first, lambda(lambdaPos, List.of(as), then));
+      JCExpression next = lambda(lambdaPos, List.of(as), then);
+      return row == null ? call(pos, "okay.tiny.direct.Do.bind", first, next)
+          : call(pos, "okay.tiny.direct.Do.bindIn", make.at(pos).Ident(row), first, next);
     }
 
     /**

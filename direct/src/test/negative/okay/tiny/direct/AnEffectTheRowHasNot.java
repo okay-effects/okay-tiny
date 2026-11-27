@@ -1,4 +1,4 @@
-// javac: inference variable R#1 has incompatible bounds
+// javac: AnEffectTheRowHasNot.java:17: error: method bindIn in class Do cannot be applied to given types
 package okay.tiny.direct;
 
 import static okay.tiny.Fx.*;
