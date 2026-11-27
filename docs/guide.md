@@ -513,6 +513,7 @@ Three things a test can check that a mock cannot easily:
 | `the switch expression does not cover all possible input values` | an operation of the effect without a clause |
 | `incompatible types: String cannot be converted to Long` | an answer, or a next state, of another type |
 | `no suitable method found for run` | an effect still in the row of what is run |
+| `inference variable F has incompatible equality constraints Clock,Stock` | a record of `Clock` that says `Op<.., Stock>`: its handler's clause is of another effect |
 | `method handler in class Handlers cannot be applied` | a handler that asks an effect that does not stay around it; or one put around a part of another type |
 
 **When it runs:**

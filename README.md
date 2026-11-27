@@ -123,7 +123,7 @@ The order of two handlers is the order of two monads (`StdTest`): a failure insi
 ## Build
 
 ```
-./gradlew test                        # scenarios, the docs' examples, a real flow of seven effects, 23 refusals
+./gradlew test                        # scenarios, the docs' examples, a real flow of seven effects, 24 refusals
 ./gradlew jmh                         # ns an operation (JMH)
 ./gradlew jmh -Pbench=StateBench.counter
 ```

@@ -35,6 +35,16 @@ found again.
   take answers of different types, and Java does not refine a type in a `case`. `on(p, clause)` reads the answer
   type off `p` once, and gives a `Case<F, S, B, R>` in which that type is hidden — so the arms of the `switch`
   have one type. `Case` has no public constructor: a clause of another answer type cannot be put there by a cast.
+- **That is as short as it gets.** The effect is named twice on a record — `implements Stock, Op<Boolean, Stock>` —
+  and every way to say it once was tried and is refused for the same reason, a generic supertype that two effects
+  of one row give different arguments: `Stock extends Op<A, Stock>`; an answer-indexed family,
+  `Eff<T> extends Op<T, Eff<?>>`; `Stock extends Effect<Stock>` with `Op<Boolean>` on the record. A family with
+  only the answer, `Eff<T> extends Op<T>`, is accepted, but then `perform` needs the family's class, rows are
+  `Eff<?> & ..`, a `case` still does not refine `T`, and `Get<S> implements State<S, S>` cannot be matched. A
+  record that names another effect than its own is caught where its effect's handler is written: the clause is
+  of the other effect (`OperationOfAnotherFamily`).
+- **One effect of a class in a row.** `<R extends State<Integer> & State<String>>` is refused by javac, which is
+  as well: a handler is found by the effect's class.
 - **Completeness is javac's.** A handler is `op -> switch (op) { .. }` over a sealed interface, and a `switch`
   expression that leaves an operation out does not compile.
 - **The row is a set, and is inferred in an earlier call.** `Fx.<R, A>row().handler(h).handle(part)` is in this
