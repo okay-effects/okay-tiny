@@ -27,11 +27,11 @@
         {
           "name": "okay-tiny-0.1.0.jar",
           "url": "okay-tiny-0.1.0.jar",
-          "size": 50491,
-          "sha512": "9820694dc36a710f8d3d936f34fa7da21e73489accd5f04a8000a2aed077bee65bbbb869f04d139af24878282fc8fee846942a88de2cbe51dc62f5b0fed7e5fb",
-          "sha256": "0a95e2ee98993a62d7f47261b8588c873beaf7cbf4101356b152ccd16d418e6c",
-          "sha1": "004eb77b3ece7d5e8ce7690c954e1d88323bf1ea",
-          "md5": "0149b7404f9722bdffa753725c2e1fe8"
+          "size": 55280,
+          "sha512": "84e0dea44e3a62eeed7e31025702a3aff42792c819a656912ffa9a5aed2bdc2868c90dc11580c6ffb6b2704d9442f9b18334b1b18a15e432cefc5ddbbc714b01",
+          "sha256": "36b9a856ce13831c228385a39c49add143ee27647f1e41b201444e6711484b4f",
+          "sha1": "ef9d52d9d84eb03cdb6c1daca72df0f00d687e87",
+          "md5": "efa6e9e6fa15ca0b3cf39bce539e92ab"
         }
       ]
     },
@@ -48,11 +48,11 @@
         {
           "name": "okay-tiny-0.1.0.jar",
           "url": "okay-tiny-0.1.0.jar",
-          "size": 50491,
-          "sha512": "9820694dc36a710f8d3d936f34fa7da21e73489accd5f04a8000a2aed077bee65bbbb869f04d139af24878282fc8fee846942a88de2cbe51dc62f5b0fed7e5fb",
-          "sha256": "0a95e2ee98993a62d7f47261b8588c873beaf7cbf4101356b152ccd16d418e6c",
-          "sha1": "004eb77b3ece7d5e8ce7690c954e1d88323bf1ea",
-          "md5": "0149b7404f9722bdffa753725c2e1fe8"
+          "size": 55280,
+          "sha512": "84e0dea44e3a62eeed7e31025702a3aff42792c819a656912ffa9a5aed2bdc2868c90dc11580c6ffb6b2704d9442f9b18334b1b18a15e432cefc5ddbbc714b01",
+          "sha256": "36b9a856ce13831c228385a39c49add143ee27647f1e41b201444e6711484b4f",
+          "sha1": "ef9d52d9d84eb03cdb6c1daca72df0f00d687e87",
+          "md5": "efa6e9e6fa15ca0b3cf39bce539e92ab"
         }
       ]
     },
@@ -68,11 +68,11 @@
         {
           "name": "okay-tiny-0.1.0-sources.jar",
           "url": "okay-tiny-0.1.0-sources.jar",
-          "size": 10837,
-          "sha512": "fca77de338f9c52e2a890400480b0bb149a59825a8eca1721f68169815c0c9f6707766a6e259ff4c05d1344ac747666037a64fe5caf94231b953ccd86d2beaf6",
-          "sha256": "36fdc19eecf55a49a5b7f495139eda98c444dd935745f2af4bf3e30076717a9f",
-          "sha1": "45b6681c556cd318751cb95541e14c9ce4f6fae0",
-          "md5": "e8f0bfb2f764981264dbffb13f0a9b4b"
+          "size": 10970,
+          "sha512": "60a905120658e0df85b58f4945961e854ddd095583d9ec5021edd5014053dc27a3644dca2672ff1db7a6af15a4f2525cfaf5474d9f480c5f8dfe77e25df5ed15",
+          "sha256": "c85e254c2e5f309e452a818b24a5f1a49c1df4a1a9d337bcedfabd18b6caddb5",
+          "sha1": "2f895ec37da29485748487b874293286bb34da8c",
+          "md5": "e03ddc04273eec126d6cd98d0347d434"
         }
       ]
     },
