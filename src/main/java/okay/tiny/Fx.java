@@ -277,26 +277,33 @@ public final class Fx {
     }
   }
 
-  /** {@code Fx.<R, A>row().handler(h).handle(part)}: the part gives A and may ask R and the handlers' effects. */
-  public static <R, A> Handlers<R, R, A, A> row() { return new Handlers<>(part -> part); }
+  /**
+   * {@code Fx.<R, B>row().handler(outer).handler(inner).handle(part)}: handlers around a part of a program, the
+   * outermost first. B is what the whole gives; R the effects that stay, unanswered.
+   */
+  public static <R, B> Handlers<R, R, B, B> row() { return new Handlers<>(part -> part); }
 
-  /** The top: no effect is left. {@code run(Fx.<A>top().handler(h).handle(program))} is a whole application. */
-  public static <A> Handlers<Object, Object, A, A> top() { return row(); }
+  /** The top: no effect is left. {@code run(Fx.<B>top().handler(h).handle(program))} is a whole application. */
+  public static <B> Handlers<Object, Object, B, B> top() { return row(); }
 
   /**
-   * R is the row that stays, W the set the part may ask: R and every effect handled here, inferred by javac. A is
-   * what the part gives, B what the handlers give of it: each is around those before it.
+   * Handlers being put, the outermost first. R is the row that stays, B what the whole gives. W is the row inside
+   * the handlers put so far — R and every effect handled here — and A what is to be given there: by the next
+   * handler, or by the part.
    */
   public static final class Handlers<R, W, A, B> {
-    private final Function<Comp<?, ?>, Comp<?, ?>> around;     // a part, with the handlers put so far around it
+    private final Function<Comp<?, ?>, Comp<?, ?>> around;     // what is put inside, with the handlers around it
 
     private Handlers(Function<Comp<?, ?>, Comp<?, ?>> around) { this.around = around; }
 
-    /** A handler may itself ask only what stays: R. */
+    /**
+     * The next handler, inside those put so far. Its clauses ask exactly what is around it, W — and so the rest
+     * they are given says all it still asks: a handler whose row is less than W is refused here.
+     */
     @SuppressWarnings("unchecked")
-    public <V extends W, C> Handlers<R, V, A, C> handler(Handler<? super V, B, C, ? super R> handler) {
+    public <V extends W, P> Handlers<R, V, P, B> handler(Handler<? super V, P, A, W> handler) {
       Objects.requireNonNull(handler, "a handler");
-      return new Handlers<>(part -> new Part<B, C, V, R>(handler, (Comp<B, ? super V>) around.apply(part)));
+      return new Handlers<>(part -> around.apply(new Part<P, A, V, W>(handler, (Comp<P, ? super V>) part)));
     }
 
     /** javac refuses a part that asks more than W. */

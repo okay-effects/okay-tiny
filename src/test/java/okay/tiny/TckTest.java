@@ -88,7 +88,7 @@ class TckTest {
           case Log.TellOp tell -> tell.e() != e ? pass(tell)
               : on(tell, (none, k) -> k.apply(null, null).map(l -> new Summed(l.sum() + tell.n(), l.value())));
         });
-    return Fx.<R, Integer>row().handler(handler).handle(part).map(l -> l.value() * 100 + l.sum());
+    return Fx.<R, Summed>row().handler(handler).handle(part).map(l -> l.value() * 100 + l.sum());
   }
 
   /**

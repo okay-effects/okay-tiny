@@ -55,11 +55,19 @@ existential: a sealed interface without that type, over private records with it 
   as well: a handler is found by the effect's class.
 - **Completeness is javac's.** A handler is `op -> switch (op) { .. }` over a sealed interface, and a `switch`
   expression that leaves an operation out does not compile.
-- **The row is a set, and is inferred in an earlier call.** `Fx.<R, A>row().handler(h).handle(part)` is in this
+- **The row is a set, and is inferred in an earlier call.** `Fx.<R, B>row().handler(h).handle(part)` is in this
   order because javac must fix the set of effects — `R` and each handler's — before it sees the part. With the
   handlers and the part in one call it infers the set from what the part asks, and accepts a part that asks more.
-- **`R` and `A` are written at `row()`.** Handlers that only answer are generic in the part's type, so javac has
-  nothing to infer it from.
+- **`R` and `B` are written at `row()`**: the row that stays, and what the whole gives. Handlers that only answer
+  are generic in the part's type, so javac has nothing to infer it from.
+- **Handlers are put outermost first, each with exactly the row around it.** Only so is that row known when a
+  handler is put: it is what the handlers before it have made. A handler's clauses ask it, and the rest they
+  are given is typed with it — so the rest says all it still asks. Put innermost first, as they were, a
+  handler's row was the one outside them all, and its rest, which still asks the effects of the handlers
+  between, said less than it asks: a clause that ran its rest by itself, `Fx.run(k.apply(x, s))`, in a handler
+  with an empty row inside a handler of the clock, compiled and failed with *no handler for Now*. javac refuses
+  that now (`RestRunByItself`). The price: what is said at `row()` is what the whole gives; a handler whose
+  result does not say what its part gives has to be told it; and a handler that asks is generic in its row.
 - **The effect's class is passed** (`folding(Stock.class, ..)`). The machine needs it to route an operation.
   Reading it from an empty varargs array (`F... effect`) works and was tried; it was taken back: a hidden
   parameter, a class read at run time, and a pitfall where a handler is made generic in its effect.

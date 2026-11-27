@@ -40,7 +40,7 @@ static <A, R> Handler<Refusal, A, Optional<A>, R> trying() {
 }
 
 // the handlers are put once, at the entry point
-Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).handle(place(cart)));
+Optional<Order> o = run(Fx.<Optional<Order>>top().handler(stock(left)).handler(trying()).handle(place(cart)));
 ```
 
 ## Install
@@ -74,8 +74,8 @@ be read and owned. `Std.java` is a second, with the usual effects.
 | `leave(value)` | a clause for any operation of the effect: the part is left, with the value |
 | `handling(Effect.class, op -> switch (op) { .. })` | a handler with no state that gives what its part gives |
 | `ensuring(part, after)` | `after` runs when the part ends: with a value, left by a clause, or by an exception |
-| `Fx.<R, A>row().handler(h).handle(part)` | handlers around a part of a program; the row `R` is left |
-| `Fx.<A>top().handler(h).handle(program)` | around the whole program: nothing is left, and `run` takes it |
+| `Fx.<R, B>row().handler(outer).handler(inner).handle(part)` | handlers around a part of a program, the outermost first; `B` is what the whole gives, the row `R` is left |
+| `Fx.<B>top().handler(h).handle(program)` | around the whole program: nothing is left, and `run` takes it |
 | `run(program)`, `run(program, see)` | runs it; `see` is given every operation asked, as data, before it is answered |
 
 What javac refuses: an operation the row does not have, an effect left without a handler, a handler that leaves

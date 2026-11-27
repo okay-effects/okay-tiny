@@ -34,26 +34,26 @@ public class StateBench {
     return run(Fx.<Integer>top().handler(counting()).handle(count(N)));
   }
   @Benchmark public Object counterInnermostOfSeven() {
-    return run(Fx.<Integer>top().handler(counting()).handler(first()).handler(clockAt(1))
-        .handler(priced()).handler(stock(Map.of()))
-        .handler(first()).handler(clockAt(2)).handle(count(N)));
+    return run(Fx.<Integer>top().handler(clockAt(2)).handler(first()).handler(stock(Map.of()))
+        .handler(priced()).handler(clockAt(1))
+        .handler(first()).handler(counting()).handle(count(N)));
   }
   @Benchmark public Object counterOutermostOfThree() {
-    return run(Fx.<Integer>top().handler(first()).handler(clockAt(1)).handler(counting()).handle(count(N)));
+    return run(Fx.<Integer>top().handler(counting()).handler(clockAt(1)).handler(first()).handle(count(N)));
   }
   @Benchmark public Object counterOutermostOfSeven() {
-    return run(Fx.<Integer>top().handler(first()).handler(clockAt(1))
-        .handler(priced()).handler(stock(Map.of())).handler(first())
-        .handler(clockAt(2)).handler(counting()).handle(count(N)));
+    return run(Fx.<Integer>top().handler(counting()).handler(clockAt(2))
+        .handler(first()).handler(stock(Map.of())).handler(priced())
+        .handler(clockAt(1)).handler(first()).handle(count(N)));
   }
   @Benchmark public Object answerInnermostOfSeven() {
-    return run(Fx.<Long>top().handler(clockAt(1)).handler(first()).handler(counting())
-        .handler(priced()).handler(stock(Map.of()))
-        .handler(first()).handler(counting()).handle(ask(N, 0)));
+    return run(Fx.<Long>top().handler(counting()).handler(first()).handler(stock(Map.of()))
+        .handler(priced()).handler(counting())
+        .handler(first()).handler(clockAt(1)).handle(ask(N, 0)));
   }
   @Benchmark public Object answerOutermostOfSeven() {
-    return run(Fx.<Long>top().handler(first()).handler(counting())
-        .handler(priced()).handler(stock(Map.of())).handler(first())
-        .handler(counting()).handler(clockAt(1)).handle(ask(N, 0)));
+    return run(Fx.<Long>top().handler(clockAt(1)).handler(counting())
+        .handler(first()).handler(stock(Map.of())).handler(priced())
+        .handler(counting()).handler(first()).handle(ask(N, 0)));
   }
 }

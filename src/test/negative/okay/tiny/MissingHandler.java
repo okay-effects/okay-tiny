@@ -9,6 +9,6 @@ import java.util.*;
 /** The program asks Clock too, and no handler of it is put. */
 class MissingHandler {
   Object x() {
-    return run(Fx.<Shop.Order>top().handler(stock(Map.of())).handler(first()).handle(place(null)));
+    return run(Fx.<Shop.Order>top().handler(first()).handler(stock(Map.of())).handle(place(null)));
   }
 }

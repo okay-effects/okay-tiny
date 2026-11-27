@@ -165,14 +165,16 @@ The handlers are put around a program once, at the entry point, and `run` takes 
 
 ```java
 Order order = run(Fx.<Order>top()
-    .handler(stock(left)).handler(prices(table)).handler(refusing()).handler(ids(100)).handler(clockAt(1700))
+    .handler(clockAt(1700)).handler(ids(100)).handler(refusing()).handler(prices(table)).handler(stock(left))
     .handle(place(good)));
 // Order[id=101, email=ann@mail, total=9, at=1700]
 ```
 
 - `Fx.<Order>top()` starts at the top of an application: nothing is to be left unanswered. `Order` is what the
-  program gives; javac cannot infer it here, so it is said.
-- `.handler(h)` puts a handler; each is around those before it, so the first is the nearest to the program.
+  whole gives — here what the program gives, since these handlers only answer; javac cannot infer it here, so
+  it is said.
+- `.handler(h)` puts a handler; the outermost first, each inside those before it, so the last is the nearest to
+  the program.
 - `.handle(program)` gives a program again, with nothing left to ask; `run` accepts only such a one.
 
 Leave out `.handler(clockAt(1700))` and it does not compile: `place` asks `Clock`, and no handler of it is put.
@@ -251,12 +253,18 @@ static <A, R> Handler<Refusal, A, Checked<A>, R> collecting() {
 The same program, and a cart with a bad address and two lines out of stock:
 
 ```java
-var shop = Fx.<Order>top().handler(stock(left)).handler(prices(table)).handler(ids(100)).handler(clockAt(1700));
+// stop at the first: throws "email: not an address"
+run(Fx.<Order>top().handler(refusing())
+    .handler(clockAt(1700)).handler(ids(100)).handler(prices(table)).handler(stock(left)).handle(place(bad)));
 
-run(shop.handler(refusing()).handle(place(bad)));     // throws: "email: not an address"
-run(shop.handler(trying()).handle(place(bad)));       // Optional.empty
-run(shop.handler(collecting()).handle(place(bad)));   // Checked[Order[..], [email: not an address,
-                                                      //   tea: out of stock, pot: out of stock]]
+// no result: Optional.empty
+run(Fx.<Optional<Order>>top().handler(trying())
+    .handler(clockAt(1700)).handler(ids(100)).handler(prices(table)).handler(stock(left)).handle(place(bad)));
+
+// all of them, and the program goes on:
+// Checked[Order[..], [email: not an address, tea: out of stock, pot: out of stock]]
+run(Fx.<Checked<Order>>top().handler(collecting())
+    .handler(clockAt(1700)).handler(ids(100)).handler(prices(table)).handler(stock(left)).handle(place(bad)));
 ```
 
 What to read here:
@@ -266,8 +274,8 @@ What to read here:
   so no `switch` is needed.
 - `collecting` goes on after a refusal — `k.apply(null, ..)` — which an exception cannot do. Its `ret` gives
   the last state together with the value.
-- A handler's result type is its own. `run(shop.handler(trying()).handle(..))` is an `Optional<Order>` because
-  `trying` says so; nothing in `place` changed.
+- A handler's result type is its own, and what the whole gives is said first: `Fx.<Optional<Order>>top()` with
+  `trying`, `Fx.<Checked<Order>>top()` with `collecting`. Nothing in `place` changed.
 
 With an interface and three implementations this would be three shapes of `place`: a `throw` through it, a list
 of errors carried through it, an `Optional` at every step.
@@ -305,7 +313,7 @@ gave:
 Comp<String, Std.Choice> outfit = Std.<String, Std.Choice>choose(List.of("tea", "cup")).flatMap(sku ->
     Std.<Integer, Std.Choice>choose(List.of(1, 2)).map(qty -> qty + " " + sku));
 
-run(Fx.<String>top().handler(all()).handle(outfit));       // [1 tea, 2 tea, 1 cup, 2 cup]
+run(Fx.<List<String>>top().handler(all()).handle(outfit)); // [1 tea, 2 tea, 1 cup, 2 cup]
 ```
 
 A state is a value on each of those ways: a rest gone on with twice goes on with two states.
@@ -345,13 +353,13 @@ static <B, R extends Stock> Handler<Stock, B, B, R> audited(List<String> audit) 
 `<R extends Stock>` says it needs another handler of `Stock` outside. Inside its own clause a handler is not in
 force, so `perform(r)` reaches the next one.
 
-**A handler inside a program.** `Fx.<R, A>row()` starts where `Fx.<A>top()` does, but leaves the row `R`
+**A handler inside a program.** `Fx.<R, B>row()` starts where `Fx.<B>top()` does, but leaves the row `R`
 unanswered: the result is a program again, of that row.
 
 ```java
 static <R extends Stock & Refusal & Clock> Comp<String, R> confirmed(Cart cart, List<String> outbox,
                                                                     List<String> audit) {
-  return Fx.<R, String>row().handler(stamped(outbox)).handler(audited(audit)).handle(confirm(cart));
+  return Fx.<R, String>row().handler(audited(audit)).handler(stamped(outbox)).handle(confirm(cart));
 }
 ```
 
@@ -359,7 +367,7 @@ static <R extends Stock & Refusal & Clock> Comp<String, R> confirmed(Cart cart, 
 out; `Stock`, `Refusal` and `Clock` are still in its type, for whoever is outside.
 
 ```java
-run(Fx.<String>top().handler(stock(left)).handler(refusing()).handler(clockAt(1700))
+run(Fx.<String>top().handler(clockAt(1700)).handler(refusing()).handler(stock(left))
     .handle(confirmed(good, outbox, audit)));
 // outbox: [1700 ann@mail: reserved]      audit: [tea x2 -> true, cup x1 -> true]
 ```
@@ -370,6 +378,8 @@ run(Fx.<String>top().handler(stock(left)).handler(refusing()).handler(clockAt(17
 it is answered.
 
 ```java
+var shop = Fx.<Order>top().handler(clockAt(1700)).handler(ids(0)).handler(prices(table)).handler(stock(left));
+
 var seen = new ArrayList<String>();
 run(shop.handler(refusing()).handle(place(good)), op -> seen.add(op.getClass().getSimpleName()));
 // [Reserve, Reserve, Total, Next, Now]
@@ -418,10 +428,12 @@ The order of two handlers is meaning. A failure inside a state keeps the state; 
 lost with the part (`StdTest.theOrderOfTwoHandlersIsTheOrderOfTwoMonads`):
 
 ```java
-run(Fx.<String>top().handler(result(String.class)).handler(state(0)).handle(countThenFail()));
+run(Fx.<Final<Integer, Result<String, String>>>top().handler(state(0)).handler(result(String.class))
+    .handle(countThenFail()));
 // Final[state=1, value=Failed[error=no]]
 
-run(Fx.<String>top().handler(state(0)).handler(result(String.class)).handle(countThenFail()));
+run(Fx.<Result<String, Final<Integer, String>>>top().handler(result(String.class)).handler(state(0))
+    .handle(countThenFail()));
 // Failed[error=no]
 ```
 
@@ -472,10 +484,12 @@ static final class Desk {
   private int lastId;
 
   Optional<Order> place(Cart cart) {
-    return run(Fx.<Order>top()
-        .handler(stock(left)).handler(prices(table)).handler(trying())
-        .handler(handling(Ids.class, op -> switch (op) { case Ids.Next next -> answer(next, ++lastId); }))
+    return run(Fx.<Optional<Order>>top()
         .handler(clockAt(System.currentTimeMillis()))
+        .handler(handling(Ids.class, op -> switch (op) { case Ids.Next next -> answer(next, ++lastId); }))
+        .handler(trying())
+        .handler(prices(table))
+        .handler(stock(left))
         .handle(GuideTest.place(cart)));
   }
 }
@@ -491,8 +505,8 @@ A test puts other handlers. There is nothing to mock and no container to start:
 
 ```java
 run(Fx.<Order>top()
-    .handler(stock(Map.of("tea", 5))).handler(prices(Map.of("tea", 4L))).handler(refusing())
-    .handler(ids(0)).handler(clockAt(0))
+    .handler(clockAt(0)).handler(ids(0)).handler(refusing())
+    .handler(prices(Map.of("tea", 4L))).handler(stock(Map.of("tea", 5)))
     .handle(place(cart)));
 ```
 
@@ -524,6 +538,14 @@ Three things a test can check that a mock cannot easily:
 
 **Worth knowing:**
 
+- The type said at `top()` and `row()` is what the whole gives, not what the part does: with `trying` around a
+  part that gives an `Order` it is `Optional<Order>`. A handler whose result does not say what its part gives —
+  `Handler<Mail, A, String, R>` — has to be told: `Shop.<List<String>, Object>logging()`.
+- A handler's row is exactly what is around it. One that asks an effect is written generic in its row,
+  `<R extends Clock>`; one declared with a row of its own — `Handler<Mail, B, B, Object>` — can be put only where
+  that is the row around it. That is what makes the rest a clause is given say all it still asks.
+- Handlers put once and used for several programs are a `var`: the type of the chain names a row javac
+  inferred, which cannot be written.
 - A row of several effects cannot be written as a type argument — `Fx.<Stock & Clock, A>row()` is not Java.
   Put the handlers in a method whose type variable is that row: `<R extends Stock & Clock>`.
 - A handler is found by its effect's class. An effect with type arguments is one effect whatever they are.

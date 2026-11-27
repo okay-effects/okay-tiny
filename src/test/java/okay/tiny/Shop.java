@@ -62,7 +62,7 @@ final class Shop {
 
   /** A handler inside a program: Refusal is taken out of the part's row; the handler says what the part gives. */
   static <R extends Stock & Clock> Comp<Optional<Order>, R> tried(Cart cart) {
-    return Fx.<R, Order>row().handler(trying()).handle(place(cart));
+    return Fx.<R, Optional<Order>>row().handler(trying()).handle(place(cart));
   }
 
   /** The effect stays in the row: its operations are seen here and asked again of the handler outside. */
@@ -91,7 +91,7 @@ final class Shop {
 
   /** The refusals are a state of the handler, a value; where the part ends it gives them with the part's value. */
   static <R extends Stock & Clock> Comp<Checked, R> placeAll(Cart cart) {
-    return Fx.<R, Order>row().handler(collecting()).handle(place(cart));
+    return Fx.<R, Checked>row().handler(collecting()).handle(place(cart));
   }
 
   static <R extends Counter> Comp<Integer, R> count(int until) {

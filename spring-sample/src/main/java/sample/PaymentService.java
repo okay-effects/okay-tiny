@@ -25,13 +25,13 @@ public class PaymentService {
   /** The whole use case in the method's transaction: a refusal is an exception, and Spring rolls back. */
   @Transactional
   public Receipt pay(String from, String to, long amount) {
-    return run(Fx.<Receipt>top().handler(handlers.accounts()).handler(handlers.clock()).handler(handlers.refusing())
+    return run(Fx.<Receipt>top().handler(handlers.refusing()).handler(handlers.clock()).handler(handlers.accounts())
         .handle(Payments.pay(from, to, amount)), audit::record);
   }
 
   @Transactional
   public Receipt payToClosed(String from, String to, long amount) {
-    return run(Fx.<Receipt>top().handler(handlers.accounts()).handler(handlers.clock()).handler(handlers.refusing())
+    return run(Fx.<Receipt>top().handler(handlers.refusing()).handler(handlers.clock()).handler(handlers.accounts())
         .handle(Payments.payToClosed(from, to, amount)));
   }
 
@@ -40,14 +40,15 @@ public class PaymentService {
    * transaction is rolled back; the other stays. No @Transactional here.
    */
   public String payBoth(String from, String to, long first, long second) {
-    return run(Fx.<String>top().handler(handlers.accounts()).handler(handlers.clock())
+    return run(Fx.<String>top().handler(handlers.clock()).handler(handlers.accounts())
         .handle(both(from, to, first, second)));
   }
 
   private <R extends Accounts & Clock> Comp<String, R> both(String from, String to, long first, long second) {
     Comp<Optional<Receipt>, R> one =
-        Fx.<R, Receipt>row().handler(handlers.optional()).handle(handlers.transactional(Payments.pay(from, to, first)));
-    Comp<Optional<Receipt>, R> other = Fx.<R, Receipt>row().handler(handlers.optional())
+        Fx.<R, Optional<Receipt>>row().handler(handlers.optional())
+            .handle(handlers.transactional(Payments.pay(from, to, first)));
+    Comp<Optional<Receipt>, R> other = Fx.<R, Optional<Receipt>>row().handler(handlers.optional())
         .handle(handlers.transactional(Payments.payToClosed(from, to, second)));
     return one.flatMap(a -> other.map(b -> said(a) + ", " + said(b)));
   }

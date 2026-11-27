@@ -118,22 +118,24 @@ class GuideTest {
   @Test
   void section4_theHandlersArePutAndTheProgramRun() {
     Order order = run(Fx.<Order>top()
-        .handler(stock(left)).handler(prices(table)).handler(refusing()).handler(ids(100)).handler(clockAt(1700))
+        .handler(clockAt(1700)).handler(ids(100)).handler(refusing()).handler(prices(table)).handler(stock(left))
         .handle(place(good)));
     assertEquals(new Order(101, "ann@mail", 9, 1700), order);
   }
 
   @Test
   void section6_oneProgramThreeMeaningsOfARefusal() {
-    var shop = Fx.<Order>top().handler(stock(left)).handler(prices(table)).handler(ids(100)).handler(clockAt(1700));
     // stop at the first: an exception
     IllegalArgumentException first = assertThrows(IllegalArgumentException.class,
-        () -> run(shop.handler(refusing()).handle(place(bad))));
+        () -> run(Fx.<Order>top().handler(refusing())
+            .handler(clockAt(1700)).handler(ids(100)).handler(prices(table)).handler(stock(left)).handle(place(bad))));
     assertEquals("email: not an address", first.getMessage());
     // no result
-    assertEquals(Optional.empty(), run(shop.handler(trying()).handle(place(bad))));
+    assertEquals(Optional.empty(), run(Fx.<Optional<Order>>top().handler(trying())
+        .handler(clockAt(1700)).handler(ids(100)).handler(prices(table)).handler(stock(left)).handle(place(bad))));
     // all of them, and the program goes on
-    Checked<Order> checked = run(shop.handler(collecting()).handle(place(bad)));
+    Checked<Order> checked = run(Fx.<Checked<Order>>top().handler(collecting())
+        .handler(clockAt(1700)).handler(ids(100)).handler(prices(table)).handler(stock(left)).handle(place(bad)));
     assertEquals(List.of("email: not an address", "tea: out of stock", "pot: out of stock"), checked.refused());
     assertEquals(new Order(101, "ann", 34, 1700), checked.value());
   }
@@ -149,14 +151,15 @@ class GuideTest {
   @Test
   void section7_afterTheRest_andTwice() {
     var log = new ArrayList<String>();
-    run(Fx.<Order>top().handler(stock(left)).handler(prices(table)).handler(refusing()).handler(ids(0))
-        .handler(timed(log)).handle(place(good)));
+    run(Fx.<Order>top().handler(timed(log)).handler(ids(0)).handler(refusing()).handler(prices(table))
+        .handler(stock(left)).handle(place(good)));
     assertEquals(List.of("the rest gave Order[id=1, email=ann@mail, total=9, at=1700]"), log);
 
     // the rest gone on with for every option: Std's choice
     Comp<String, Std.Choice> outfit = Std.<String, Std.Choice>choose(List.of("tea", "cup")).flatMap(sku ->
         Std.<Integer, Std.Choice>choose(List.of(1, 2)).map(qty -> qty + " " + sku));
-    assertEquals(List.of("1 tea", "2 tea", "1 cup", "2 cup"), run(Fx.<String>top().handler(all()).handle(outfit)));
+    assertEquals(List.of("1 tea", "2 tea", "1 cup", "2 cup"), run(Fx.<List<String>>top().handler(all())
+        .handle(outfit)));
   }
 
   // ---- 8. a handler that asks, and a handler that passes on
@@ -186,14 +189,14 @@ class GuideTest {
   /** A handler inside a program: Mail and the audit are answered here; Stock, Refusal and Clock stay in the row. */
   static <R extends Stock & Refusal & Clock> Comp<String, R> confirmed(Cart cart, List<String> outbox,
                                                                       List<String> audit) {
-    return Fx.<R, String>row().handler(stamped(outbox)).handler(audited(audit)).handle(confirm(cart));
+    return Fx.<R, String>row().handler(audited(audit)).handler(stamped(outbox)).handle(confirm(cart));
   }
 
   @Test
   void section8_aHandlerThatAsks_aHandlerThatPassesOn_aHandlerInsideAProgram() {
     var outbox = new ArrayList<String>();
     var audit = new ArrayList<String>();
-    String done = run(Fx.<String>top().handler(stock(left)).handler(refusing()).handler(clockAt(1700))
+    String done = run(Fx.<String>top().handler(clockAt(1700)).handler(refusing()).handler(stock(left))
         .handle(confirmed(good, outbox, audit)));
     assertEquals("confirmed", done);
     assertEquals(List.of("1700 ann@mail: reserved"), outbox);
@@ -204,7 +207,7 @@ class GuideTest {
   @Test
   void section9_anObserver_section10_closing() {
     var seen = new ArrayList<String>();
-    var shop = Fx.<Order>top().handler(stock(left)).handler(prices(table)).handler(ids(0)).handler(clockAt(1700));
+    var shop = Fx.<Order>top().handler(clockAt(1700)).handler(ids(0)).handler(prices(table)).handler(stock(left));
     run(shop.handler(refusing()).handle(place(good)), op -> seen.add(op.getClass().getSimpleName()));
     assertEquals(List.of("Reserve", "Reserve", "Total", "Next", "Now"), seen);
 
@@ -223,10 +226,12 @@ class GuideTest {
     Desk(Map<String, Integer> left, Map<String, Long> table) { this.left = left; this.table = table; }
 
     Optional<Order> place(Cart cart) {
-      return run(Fx.<Order>top()
-          .handler(stock(left)).handler(prices(table)).handler(trying())
-          .handler(handling(Ids.class, op -> switch (op) { case Ids.Next next -> answer(next, ++lastId); }))
+      return run(Fx.<Optional<Order>>top()
           .handler(clockAt(System.currentTimeMillis()))
+          .handler(handling(Ids.class, op -> switch (op) { case Ids.Next next -> answer(next, ++lastId); }))
+          .handler(trying())
+          .handler(prices(table))
+          .handler(stock(left))
           .handle(GuideTest.place(cart)));
     }
   }

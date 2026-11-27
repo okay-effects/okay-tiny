@@ -113,8 +113,9 @@ may be *kept* while its parts go on being run (`keep`) takes parts of its own at
 - No field of a node or a step is ever written after it is made. Two things are: the state of a part that is
   being run, and `K.gone`, a flag that only ever goes from false to true.
 - A part a rest holds is never run: the rest goes on with parts made anew of it.
-- The five places marked unchecked: the phantom row in `flatMap` and in `map`; the handlers put so far, kept as
-  a function of a program of any type; the result of `handle`; and the loop. The loop is where the types that
+- The seven places marked unchecked: the phantom row in `flatMap` and in `map`; the handlers put so far, kept as
+  a function of a program of any type; the result of `handle`; the loop; and the two that open a hidden type for
+  it — a part's handler with its state's type (`Around.handler`) and a clause with its answer's (`erased`). The loop is where the types that
   `Case`, `Handler` and the nodes hide are opened: its registers — `value`, and a part as the loop holds it — hold what each
   step, in its turn, has a type for, and a variable of a Java loop has one type. Nothing else is erased: the
   nodes, a clause (`Case` over its four kinds), a handler (`Handler` over `Fold`) and a step are typed. What guards the

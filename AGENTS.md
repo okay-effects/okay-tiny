@@ -46,7 +46,7 @@ static <A, R> Handler<Refusal, A, Optional<A>, R> trying() {
 }
 
 // 5. the handlers are put once, at the entry point; run takes only a program with nothing left to ask
-Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).handle(place(cart)));
+Optional<Order> o = run(Fx.<Optional<Order>>top().handler(stock(left)).handler(trying()).handle(place(cart)));
 ```
 
 | It needs | Write |
@@ -84,8 +84,8 @@ before a `$` cannot change after it.
 - Business logic is programs over declared effects. Real resources — a database, a client, a clock — are reached
   only in handlers, which are made at the entry point.
 - `run` is called once, at the entry point (`main`, a request's handler, a test). Inside a program, put a handler
-  around a part with `Fx.<R, A>row().handler(h).handle(part)`: it is a program again.
-- Handlers are put innermost first; each is around those before it. The order is meaning: a failure inside a
+  around a part with `Fx.<R, B>row().handler(h).handle(part)`: it is a program again.
+- Handlers are put outermost first; each is inside those before it. The order is meaning: a failure inside a
   state keeps the state, a state inside a failure is lost with the part.
 - Many at once is an operation that holds a list (`record Total(List<String> items)`): its handler sees them all
   before it answers.
@@ -93,7 +93,9 @@ before a `$` cannot change after it.
 
 ### Pitfalls
 
-- `Fx.<R, A>row()` and `Fx.<A>top()` name the part's value type `A`: javac cannot infer it there. A row of several
+- `Fx.<R, B>row()` and `Fx.<B>top()` name what the whole gives, `B` — `Optional<Order>` where a handler makes that
+  of the part's `Order`: javac cannot infer it there. A handler that asks something is generic in its row
+  (`<R extends Clock>`): its row is exactly what is around it. A row of several
   effects is a type variable of the enclosing method, `<R extends Stock & Clock>`: it cannot be written as a
   type argument.
 - An effect interface has no generic supertype of its own; each record says `Op<Answer, Effect>`. Two effects

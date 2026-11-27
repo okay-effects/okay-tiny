@@ -41,8 +41,9 @@ class ReadmeTest {
   void theExample() {
     var left = Map.of("tea", 5);
     Cart tea = new Cart("tea", 2), pot = new Cart("pot", 1);
-    Optional<Order> o = run(Fx.<Order>top().handler(trying()).handler(stock(left)).handle(place(tea)));
+    Optional<Order> o = run(Fx.<Optional<Order>>top().handler(stock(left)).handler(trying()).handle(place(tea)));
     assertEquals(Optional.of(new Order(tea)), o);
-    assertEquals(Optional.empty(), run(Fx.<Order>top().handler(trying()).handler(stock(left)).handle(place(pot))));
+    assertEquals(Optional.empty(), run(Fx.<Optional<Order>>top().handler(stock(left)).handler(trying())
+        .handle(place(pot))));
   }
 }
