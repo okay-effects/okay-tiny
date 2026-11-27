@@ -234,15 +234,5 @@ class StdTest {
         run(Fx.<Final<Integer, Final<Integer, Integer>>>top().handler(Count.state.from(0))
             .handler(Other.state.from(0)).handle(both())));
   }
-
-  interface Twice {}
-
-  /** An effect is said of a template once: a second saying, which could be of another type, is refused. */
-  @Test
-  void anEffectIsSaidOfATemplateOnce() {
-    State<Integer, Twice> first = State.of(Twice.class);
-    IllegalStateException refused =
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> Fail.of(Twice.class));
-    assertEquals(Twice.class.getName() + " is a state already", refused.getMessage());
-  }
+}
 }

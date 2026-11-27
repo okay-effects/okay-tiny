@@ -93,7 +93,7 @@ interface Count { State<Integer, Count> state = State.of(Count.class); }
 ```
 
 — and the functions and handlers in their rows are reached through what was made: `Count.state.get()`,
-`Count.state.from(0)`. An effect is said of a template once; a second `of` for the same class throws.
+`Count.state.from(0)`. An effect is said of one template, once.
 
 ## What javac refuses
 

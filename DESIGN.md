@@ -63,8 +63,9 @@ what the machine is at, `At<Z>`, over `Run<A, Y, Z>`, `Give<A, Y, Z>` and `Done<
   The type is the application's own and has no supertype, so any two are in one row; the template's operations
   are generic records that hold the effect's class and say it (`Op.of()`), and the machine finds a handler by
   what an operation says it is of, where it says, and by its class where it does not. The type of the state is
-  javac's from the declaration — `State<Integer, Count>` — to every use; and an effect is said of a template
-  once, which is checked when it is said: a second, of another type, would be the first hole again.
+  javac's from the declaration — `State<Integer, Count>` — to every use. An effect is to be said of one
+  template, once: that is not checked — a second saying for the same class, of another type, would be the
+  first hole again, and it takes writing the line twice.
   Tried and taken back on the way: a `Key<T>` that operations and handler shared, with `pass()`, a clause by
   which a handler let an operation go on outside — a value at every use, checked when the program runs; an
   effect's own record that held a template's operation, with the answer in its type (a constructor passed as

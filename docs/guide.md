@@ -449,8 +449,8 @@ chain, since the types are the effect's; and a handler of one never sees an oper
 by a method around a part it knows nothing of does not answer that part's own
 (`StdTest.aStatePutAroundAPartDoesNotAnswerThePartsOwn`).
 
-An effect is said of a template once: a second saying — `Fail.of(Count.class)` — is refused when it is made
-(`anEffectIsSaidOfATemplateOnce`), for it could be of another type.
+An effect is said of one template, once: two sayings for one class, of two types, would be one effect to the
+machine.
 
 A template of your own is written as these are: a class `P<T, F>` with the effect's class; its operations,
 generic records that hold that class as `of` — which is how an operation says which effect it is of, and how

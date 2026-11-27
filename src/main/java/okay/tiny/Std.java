@@ -5,11 +5,9 @@ import static okay.tiny.Fx.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
 import java.util.function.BiFunction;
@@ -40,15 +38,6 @@ public final class Std {
   // Count.state.from(0). A template's operations are generic records, and each says which effect it is of
   // (Op.of): so the machine finds Count's handler for Count's, whatever other state is in force.
 
-  /** An effect is said of a template once: else two of them, of two types, would be one effect to the machine. */
-  private static final Map<Class<?>, String> SAID = new ConcurrentHashMap<>();
-
-  private static <F> Class<F> once(Class<F> effect, String template) {
-    String before = SAID.putIfAbsent(Objects.requireNonNull(effect, "the effect's class"), template);
-    if (before != null) throw new IllegalStateException(effect.getName() + " is a " + before + " already");
-    return effect;
-  }
-
   /** An operation of F as one of the template that F was said of: the machine found the handler by F. */
   @SuppressWarnings("unchecked")
   private static <T> T asked(Object op) { return (T) op; }
@@ -65,7 +54,7 @@ public final class Std {
 
     private State(Class<F> effect) { this.effect = effect; }
 
-    public static <S, F> State<S, F> of(Class<F> effect) { return new State<>(once(effect, "state")); }
+    public static <S, F> State<S, F> of(Class<F> effect) { return new State<>(effect); }
 
     public <R extends F> Comp<S, R> get() { return perform(new Get<>(effect)); }
 
@@ -97,7 +86,7 @@ public final class Std {
 
     private Fail(Class<F> effect) { this.effect = effect; }
 
-    public static <E, F> Fail<E, F> of(Class<F> effect) { return new Fail<>(once(effect, "failure")); }
+    public static <E, F> Fail<E, F> of(Class<F> effect) { return new Fail<>(effect); }
 
     /** Of any type: its answer never comes. */
     public <T, R extends F> Comp<T, R> with(E error) {
@@ -129,7 +118,7 @@ public final class Std {
 
     private Emit(Class<F> effect) { this.effect = effect; }
 
-    public static <T, F> Emit<T, F> of(Class<F> effect) { return new Emit<>(once(effect, "stream")); }
+    public static <T, F> Emit<T, F> of(Class<F> effect) { return new Emit<>(effect); }
 
     public <R extends F> Comp<Void, R> tell(T item) { return perform(new Tell<>(effect, item)); }
 
@@ -155,7 +144,7 @@ public final class Std {
 
     private Env(Class<F> effect) { this.effect = effect; }
 
-    public static <E, F> Env<E, F> of(Class<F> effect) { return new Env<>(once(effect, "thing given")); }
+    public static <E, F> Env<E, F> of(Class<F> effect) { return new Env<>(effect); }
 
     public <R extends F> Comp<E, R> ask() { return perform(new Ask<>(effect)); }
 
