@@ -154,4 +154,26 @@ class StdTest {
     assertEquals(List.of(List.of("a1", "b1"), List.of("a1", "b2"), List.of("a2", "b1"), List.of("a2", "b2")),
         run(Fx.<List<String>>top().handler(all()).handle(words)));
   }
+
+  // ---- tail calls: a call that is the last thing a function of flatMap does is a step of the machine
+
+  static <R extends State<Long>> Comp<Boolean, R> even(long n) {
+    return n == 0 ? pure(true) : Std.<Long, R>update(count -> count + 1).flatMap(x -> odd(n - 1));
+  }
+
+  static <R extends State<Long>> Comp<Boolean, R> odd(long n) {
+    return n == 0 ? pure(false) : Std.<Long, R>update(count -> count + 1).flatMap(x -> even(n - 1));
+  }
+
+  static <R> Comp<Boolean, R> evenAsking(long n) { return n == 0 ? pure(true) : defer(() -> oddAsking(n - 1)); }
+
+  static <R> Comp<Boolean, R> oddAsking(long n) { return n == 0 ? pure(false) : defer(() -> evenAsking(n - 1)); }
+
+  /** Two functions that call each other, five million times: neither the stack (256k) nor the heap (64m) grows. */
+  @Test
+  void aTailCallBetweenTwoFunctionsTakesNeitherStackNorHeap() {
+    assertEquals(new Final<>(5_000_000L, true),
+        run(Fx.<Boolean>top().handler(state(0L)).handle(even(5_000_000))));
+    assertEquals(false, run(StdTest.<Object>evenAsking(5_000_001)));
+  }
 }

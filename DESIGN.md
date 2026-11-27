@@ -115,6 +115,13 @@ A free monad makes five or six small objects for an operation; that is the floor
 it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark
 under every clause that is given the rest, and a test for marks at every step.
 
+**Tail calls.** A call in the tail of a function given to `flatMap` leaves nothing in the stack of steps: two
+functions that call each other 10^8 times run in a stack of 256k and a heap of 64m, at 47 ns a turn with a
+state read and written (two operations), 6 ns with nothing asked (`defer`). Not tail calls, measured too: a
+call with a `map` after it, or inside `ensuring` — the heap grows by a step a level; a call inside a handler put
+anew — a part a level, and each new part copies the array of states, so the time is quadratic in the depth
+(10^5 levels: 0.6 s). Handlers are meant to be a few deep; the array was chosen for that (section 4).
+
 ## 6. What is not here
 
 - **Direct style.** Without threads or a bytecode transformation there is none in Java; okay-java has it.

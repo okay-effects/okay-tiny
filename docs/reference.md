@@ -80,6 +80,7 @@ handler there with `row()`.
 | `fold(items, initial, step)` | `Comp<S, R>`: `step: (state, item) -> Comp<S, R>` |
 | `iterate(initial, goesOn, step)` | `Comp<S, R>`: `step` again while `goesOn(state)` |
 | `when(condition, program)` | `Comp<Void, R>` |
+| `defer(() -> program)` | the program, made when it is reached: a call with nothing asked before it, as a step of the machine |
 | `zip(one, other, both)` | `Comp<C, R>`: one, then the other, `both(a, b)` |
 
 Items are any `Iterable`, read once into a list when the program is made. A body's row may be less than `R`.

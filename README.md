@@ -89,7 +89,7 @@ a value, never replayed). Its state is a value too: a rest gone on with twice ha
 
 ## The usual effects
 
-[`Std.java`](src/main/java/okay/tiny/Std.java), 212 lines beside the kernel and written only with what it gives:
+[`Std.java`](src/main/java/okay/tiny/Std.java), 215 lines beside the kernel and written only with what it gives:
 each effect with the handler that is its monad.
 
 | Effect | Asked with | Handler | The part gives |
@@ -102,7 +102,7 @@ each effect with the handler that is its monad.
 | `Async` | `await(start)`, `awaitAll(starts)` | `blocking()`; or `start(program)` | `A`; a `CompletableFuture<A>` |
 
 And the usual shapes of a program, so that a loop is not a recursion each time: `forEach`, `collect`, `fold`,
-`iterate`, `when`, `zip`.
+`iterate`, `when`, `zip`, `defer`.
 
 The order of two handlers is the order of two monads (`StdTest`): a failure inside a state keeps the state,
 `Final<S, Result<E, A>>`; a state inside a failure is lost with the part, `Result<E, Final<S, A>>`.

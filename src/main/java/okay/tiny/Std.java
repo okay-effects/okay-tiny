@@ -279,7 +279,15 @@ public final class Std {
         : Std.<S, R>of(step.apply(state)).flatMap(next -> iterate(next, goesOn, step)));
   }
 
-  /** The program, where the condition holds; its value is not needed. */
+/**
+ * The program is made when it is reached, not where this is written: a call that asks nothing before it calls
+ * again — `n == 0 ? pure(true) : defer(() -> odd(n - 1))` — is then a step of the machine, and takes no stack.
+ */
+public static <A, R> Comp<A, R> defer(Supplier<? extends Comp<A, ? super R>> program) {
+  return Fx.<Object, R>pure(null).flatMap(reached -> Std.<A, R>of(program.get()));
+}
+
+/** The program, where the condition holds; its value is not needed. */
   public static <R> Comp<Void, R> when(boolean condition, Comp<?, ? super R> then) {
     return condition ? Std.<Object, R>of(then).map(done -> null) : pure(null);
   }

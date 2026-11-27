@@ -89,6 +89,30 @@ static <R extends Stock & Refusal> Comp<Void, R> reserveAll(List<Line> lines, in
 }
 ```
 
+That holds for any functions that call each other, not only for one that calls itself: a call that is the last
+thing the function given to `flatMap` does is a step of the machine. It leaves nothing behind — neither on
+the stack nor in the heap — so such a program may go on for ever (`StdTest`: two functions, five million calls
+of each other, a stack of 256k and a heap of 64m).
+
+```java
+static <R extends State<Long>> Comp<Boolean, R> even(long n) {
+  return n == 0 ? pure(true) : Std.<Long, R>update(count -> count + 1).flatMap(x -> odd(n - 1));
+}
+static <R extends State<Long>> Comp<Boolean, R> odd(long n) {
+  return n == 0 ? pure(false) : Std.<Long, R>update(count -> count + 1).flatMap(x -> even(n - 1));
+}
+```
+
+Three things are not such a call:
+
+- **A call with nothing asked before it** — `n == 0 ? pure(true) : odd(n - 1)` — is an ordinary call of Java,
+  made while the program is being made, and takes Java's stack. Put it off: `defer(() -> odd(n - 1))`.
+- **A call with something after it** — `again(n - 1).map(v -> v + 1)` — has that something to come back to.
+  Deferred, it takes no stack, but the heap grows with the depth.
+- **A call inside a handler put anew, or inside `ensuring`** — `row().handler(h).handle(again(n - 1))` — has the
+  handler's `ret`, or the closing, to come back to. Each level is a part more, and a part more costs more the
+  deeper it is. Put the handler, or the `ensuring`, around the loop and not in it.
+
 A program of fewer effects is used inside one of more as it is. `place` asks five effects and calls
 `reserveAll`, which asks two; nothing is written for that.
 
