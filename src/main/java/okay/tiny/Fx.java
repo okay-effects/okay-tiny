@@ -35,16 +35,18 @@ public final class Fx {
       return new Asking<>(op, next);
     }
     @Override public <Y> Rest<A, Y> after(Rest<A, Y> rest) { return rest; }
-    @Override public <Y, Z> void answered(Machine<Z> machine, A answer, Rest<A, Y> rest, Around<Y, Z> around) {
-      machine.pass(answer, rest, around);
+    @Override public <Y, Z> void answered(Machine<Z> machine, A answer, Rest<A, Y> rest, Around<Y, Z> around,
+                                          int deep) {
+      machine.pass(answer, rest, around, deep);
     }
   }
   /** An operation asked, and the program of its answer: the node a free monad is named for. */
   record Asking<X, A, R>(Op<X, ? super R> op, Function<? super X, ? extends Comp<A, R>> next)
       implements Comp<A, R>, Asks<X, A> {
     @Override public <Y> Rest<X, Y> after(Rest<A, Y> rest) { return new Then<>(next, rest); }
-    @Override public <Y, Z> void answered(Machine<Z> machine, X answer, Rest<A, Y> rest, Around<Y, Z> around) {
-      machine.run(next.apply(answer), rest, around);
+    @Override public <Y, Z> void answered(Machine<Z> machine, X answer, Rest<A, Y> rest, Around<Y, Z> around,
+                                          int deep) {
+      machine.go(next.apply(answer), rest, around, deep);
     }
   }
   /**
@@ -54,7 +56,7 @@ public final class Fx {
   private sealed interface Asks<X, A> {
     Op<X, ?> op();
     <Y> Rest<X, Y> after(Rest<A, Y> rest);
-    <Y, Z> void answered(Machine<Z> machine, X answer, Rest<A, Y> rest, Around<Y, Z> around);
+    <Y, Z> void answered(Machine<Z> machine, X answer, Rest<A, Y> rest, Around<Y, Z> around, int deep);
   }
   record FlatMap<X, A, R>(Comp<X, R> first, Function<? super X, ? extends Comp<A, R>> next) implements Comp<A, R> {}
   /** The part gives A and asks V; the handler is of an effect V has, gives B, and asks what stays, R. */
@@ -158,7 +160,11 @@ public final class Fx {
 
   /** What a Handler is, with the state's type S, which Handler hides. */
   private record Fold<F, S, A, B, R>(Class<F> effect, S state, BiFunction<S, A, B> ret,
-                                     Function<F, Case<F, S, B, R>> cases) implements Handler<F, A, B, R> {}
+                                     Function<F, Case<F, S, B, R>> cases) implements Handler<F, A, B, R> {
+    /** The operation as one of this handler's effect: it is, the machine has just found the handler by that. */
+    @SuppressWarnings("unchecked")
+    private F of(Op<?, ?> op) { return (F) op; }
+  }
 
   /**
    * folding(Effect.class, state, (s, a) -> b, op -> switch (op) { case X x -> on(x, (s, k) -> ..); .. }):
@@ -216,13 +222,7 @@ public final class Fx {
      * it, on top of the parts run now.
      */
     private <Y, Z> Around<T, Z> onto(S state, Rest<B, Y> rest, Around<Y, Z> now) {
-      return anew(top, state, rest, now);
-    }
-
-    private <A, Y, Z> Around<A, Z> anew(Around<A, ?> from, S state, Rest<B, Y> rest, Around<Y, Z> now) {
-      if (from == own) return its(own, state, rest, now);
-      if (from instanceof In<?, ?, A, ?, ?, ?, ?> inside) return inside(inside, state, rest, now);
-      throw new IllegalStateException("a rest without its handler's part");
+      return top.anew(this, state, rest, now);
     }
 
     /** Its own part anew. It is the part `from` was: so the part gives what `from` gave, A. */
@@ -234,16 +234,11 @@ public final class Fx {
       return (Around<A, Z>) anew;
     }
 
-    private <F, U, A, C, Q, W, Y, Z> Around<A, Z> inside(In<F, U, A, C, Q, W, ?> part, S state, Rest<B, Y> rest,
-                                                         Around<Y, Z> now) {
-      return new In<>(part.handler, part.state, part.rest, anew(part.outer, state, rest, now));
-    }
-
     /** For a rest that is kept while its parts go on being run: parts of its own, with the states as they are. */
     private void keep() { keep(own); }
 
     private <Y, Z> void keep(In<?, S, ?, B, ?, Y, Z> own) {
-      top = anew(top, own.state, own.rest, own.outer);
+      top = top.anew(this, own.state, own.rest, own.outer);
       this.own = made;
     }
 
@@ -349,6 +344,12 @@ public final class Fx {
   private sealed interface Around<A, Z> {
     /** Where no part is around, the value is the program's: A is Z. Only Top says so. */
     default Z result(A value) { throw new IllegalStateException("parts are left: " + this); }
+
+    /**
+     * The parts a rest was taken with, anew, from this one to that rest's own: each with the state it had, its
+     * own with `state` and `rest` after it, on top of the parts run now.
+     */
+    <S, B, Y, W> Around<A, W> anew(K<?, ?, S, B, ?> k, S state, Rest<B, Y> rest, Around<Y, W> now);
   }
 
   /**
@@ -364,12 +365,20 @@ public final class Fx {
     private In(Fold<F, S, A, B, R> handler, S state, Rest<B, Y> rest, Around<Y, Z> outer) {
       this.handler = handler; this.state = state; this.rest = rest; this.outer = outer;
     }
+
+    @Override public <U, C, V, W> Around<A, W> anew(K<?, ?, U, C, ?> k, U state, Rest<C, V> rest, Around<V, W> now) {
+      if (this == k.own) return k.its(k.own, state, rest, now);
+      return new In<>(handler, this.state, this.rest, outer.anew(k, state, rest, now));
+    }
   }
 
   /** No part: the value is the program's. */
   private record Top<A>() implements Around<A, A> {
     private static final Top<Object> NONE = new Top<>();
     @Override public A result(A value) { return value; }
+    @Override public <S, B, Y, W> Around<A, W> anew(K<?, ?, S, B, ?> k, S state, Rest<B, Y> rest, Around<Y, W> now) {
+      throw new IllegalStateException("a rest without its handler's part");
+    }
   }
 
   @SuppressWarnings("unchecked")
@@ -394,95 +403,114 @@ public final class Fx {
 
   /**
    * What is being run, at one moment: a program of some A (or a value of it, the program done), the steps from A to
-   * some Y, the parts from Y to Z. A and Y are different at every turn, and a field has one type: so the three are
-   * set together, by `run` and `pass`, which take them only where they fit, and read together, by `turn`.
+   * some Y, the parts from Y to Z. A and Y are different at every turn, so they cannot be the types of variables of
+   * a loop. They are the arguments of methods instead: each move of the machine is a method that takes the three
+   * where they fit, and calls the next move with the three it has made. A call is not a loop — it takes stack — so
+   * after `DEEP` of them the three are put down in the machine's fields, every call returns, and the loop below
+   * takes them up again: the stack a program takes is DEEP calls, however long it runs.
    */
   private static final class Machine<Z> {
+    private static final int DEEP = 32;
+
     private final Consumer<? super Op<?, ?>> see;
-    private Comp<?, ?> now;                   // the program to run; none: `value` is to be given to the steps
+    private Comp<?, ?> now;                   // put down: the program to run; none: `value` is for the steps
     private Object value;
-    private Rest<?, ?> rest;                  // the steps of the part being run
-    private Around<?, Z> around;              // that part, and those around it
+    private Rest<?, ?> rest;                  // put down: the steps of the part being run
+    private Around<?, Z> around;              // put down: that part, and those around it
     private Op<?, ?> asked;                   // the operation asked last
+    private boolean failed;                   // where it failed is put down already
     private boolean done;
     private Z result;
 
     private Machine(Consumer<? super Op<?, ?>> see) { this.see = see; }
 
     private Z run(Comp<Z, ?> program) {
-      run(program, Fx.<Z>end(), Fx.<Z>none());
+      this.now = program; this.rest = Fx.<Z>end(); this.around = Fx.<Z>none();
       try {
-        while (!done) turn();
+        while (!done) taken();
         return result;
       } catch (Throwable thrown) {                        // what was to be closed is closed, and it is thrown on
-        failed(thrown);
+        close(thrown);
         throw thrown;
       }
     }
 
-    /** The program to run next, with the steps that take its value and the parts those steps end in. */
-    private <A, Y> void run(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around) {
-      this.now = now; this.rest = rest; this.around = around;
-    }
-
-    /** A value, with the steps that take it and the parts those steps end in. */
-    private <A, Y> void pass(A value, Rest<A, Y> rest, Around<Y, Z> around) {
-      this.now = null; this.value = value; this.rest = rest; this.around = around;
-    }
-
-    /** The three, read together: they were set together, so they fit. The one place where that is taken on trust. */
+    /** The three, taken up together: they were put down together, so they fit. The one place taken on trust. */
     @SuppressWarnings("unchecked")
-    private void turn() {
+    private void taken() {
       Rest<Object, Object> rest = (Rest<Object, Object>) this.rest;
       Around<Object, Z> around = (Around<Object, Z>) this.around;
-      if (now != null) step((Comp<Object, ?>) now, rest, around);
-      else give(value, rest, around);
+      if (now != null) step((Comp<Object, ?>) now, rest, around, 0);
+      else give(value, rest, around, 0);
     }
 
-    /** One node of the program is run. */
-    private <A, Y> void step(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around) {
-      switch (now) {
-        case Pure<A, ?> pure -> pass(pure.value(), rest, around);
-        case Perform<A, ?> asks -> ask(asks, rest, around);
-        case Asking<?, A, ?> asks -> ask(asks, rest, around);
-        case FlatMap<?, A, ?> bound -> bind(bound, rest, around);
-        case Mapped<?, A, ?> mapped -> map(mapped, rest, around);
-        case Ensure<A, ?> ensured -> run(ensured.part(), new Closing<>(ensured.after(), rest), around);
-        case Part<?, A, ?, ?> part -> part(part, rest, around);
-        case Resume<?, ?, A, ?> on -> resume(on, rest, around);
-        case Defer<A, ?> deferred -> run(deferred.program().get(), rest, around);
+    /** The program to run next, with the steps that take its value and the parts those steps end in. */
+    private <A, Y> void go(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around, int deep) {
+      if (deep < DEEP) {
+        step(now, rest, around, deep + 1);
+      } else {
+        this.now = now; this.rest = rest; this.around = around;
       }
     }
 
-    private <X, A, Y> void bind(FlatMap<X, A, ?> bound, Rest<A, Y> rest, Around<Y, Z> around) {
-      run(bound.first(), new Then<X, A, Y>(bound.next(), rest), around);
+    /** A value, with the steps that take it and the parts those steps end in. */
+    private <A, Y> void pass(A value, Rest<A, Y> rest, Around<Y, Z> around, int deep) {
+      if (deep < DEEP) {
+        give(value, rest, around, deep + 1);
+      } else {
+        this.now = null; this.value = value; this.rest = rest; this.around = around;
+      }
     }
 
-    private <X, A, Y> void map(Mapped<X, A, ?> mapped, Rest<A, Y> rest, Around<Y, Z> around) {
-      run(mapped.first(), new Mapping<X, A, Y>(mapped.f(), rest), around);
+    /** One node of the program is run. */
+    private <A, Y> void step(Comp<A, ?> now, Rest<A, Y> rest, Around<Y, Z> around, int deep) {
+      try {
+        switch (now) {
+          case Pure<A, ?> pure -> pass(pure.value(), rest, around, deep);
+          case Perform<A, ?> asks -> ask(asks, rest, around, deep);
+          case Asking<?, A, ?> asks -> ask(asks, rest, around, deep);
+          case FlatMap<?, A, ?> bound -> bind(bound, rest, around, deep);
+          case Mapped<?, A, ?> mapped -> map(mapped, rest, around, deep);
+          case Ensure<A, ?> ensured -> go(ensured.part(), new Closing<>(ensured.after(), rest), around, deep);
+          case Part<?, A, ?, ?> part -> part(part, rest, around, deep);
+          case Resume<?, ?, A, ?> on -> resume(on, rest, around, deep);
+          case Defer<A, ?> deferred -> go(deferred.program().get(), rest, around, deep);
+        }
+      } catch (Throwable thrown) {
+        failed(thrown, rest, around);
+        throw thrown;
+      }
+    }
+
+    private <X, A, Y> void bind(FlatMap<X, A, ?> bound, Rest<A, Y> rest, Around<Y, Z> around, int deep) {
+      go(bound.first(), new Then<X, A, Y>(bound.next(), rest), around, deep);
+    }
+
+    private <X, A, Y> void map(Mapped<X, A, ?> mapped, Rest<A, Y> rest, Around<Y, Z> around, int deep) {
+      go(mapped.first(), new Mapping<X, A, Y>(mapped.f(), rest), around, deep);
     }
 
     /** A handler around a part of the program: the part is run with no steps yet, in a part of its own. */
-    private <P, A, Y> void part(Part<P, A, ?, ?> part, Rest<A, Y> rest, Around<Y, Z> around) {
+    private <P, A, Y> void part(Part<P, A, ?, ?> part, Rest<A, Y> rest, Around<Y, Z> around, int deep) {
       switch (part.handler()) {
-        case Fold<?, ?, P, A, ?> handler -> in(handler, part.part(), rest, around);
+        case Fold<?, ?, P, A, ?> handler -> in(handler, part.part(), rest, around, deep);
       }
     }
 
     private <F, S, P, A, R, Y> void in(Fold<F, S, P, A, R> handler, Comp<P, ?> part, Rest<A, Y> rest,
-                                       Around<Y, Z> around) {
-      run(part, Fx.<P>end(), new In<>(handler, handler.state, rest, around));
+                                       Around<Y, Z> around, int deep) {
+      go(part, Fx.<P>end(), new In<>(handler, handler.state, rest, around), deep);
     }
 
     /** An operation is asked: the nearest part whose handler's effect it is of answers. */
-    private <X, A, Y> void ask(Asks<X, A> asks, Rest<A, Y> rest, Around<Y, Z> around) {
+    private <X, A, Y> void ask(Asks<X, A> asks, Rest<A, Y> rest, Around<Y, Z> around, int deep) {
       Op<X, ?> op = asks.op();
       asked = op;
       if (see != null) see.accept(op);
       Around<?, Z> own = around;
       while (own instanceof In<?, ?, ?, ?, ?, ?, Z> part) {
         if (part.handler.effect.isInstance(op)) {
-          answer(part, asks, op, rest, around);
+          answer(part, asks, op, rest, around, deep);
           return;
         }
         own = part.outer;
@@ -490,10 +518,11 @@ public final class Fx {
       throw new IllegalStateException("no handler for " + op);
     }
 
+    /** This part answers: the operation is of its handler's effect. */
     private <F, S, P, B, R, W, X, A, Y> void answer(In<F, S, P, B, R, W, Z> own, Asks<X, A> asks, Op<X, ?> op,
-                                                    Rest<A, Y> rest, Around<Y, Z> around) {
-      switch (own.handler.cases.apply(own.handler.effect.cast(op))) {
-        case Answer<?, F, S, B, R> answered -> asks.answered(this, answered.of(op), rest, around);
+                                                    Rest<A, Y> rest, Around<Y, Z> around, int deep) {
+      switch (own.handler.cases.apply(own.handler.of(op))) {
+        case Answer<?, F, S, B, R> answered -> asks.answered(this, answered.of(op), rest, around, deep);
         case Takes<F, S, B, R> takes -> {                 // the rest, to the end of the handler's part
           Rest<X, Y> after = asks.after(rest);
           K<X, Y, S, B, R> k = new K<>(after, around, own);
@@ -508,11 +537,11 @@ public final class Fx {
             // and the state moves on where it is. (A rest that may be kept takes parts of its own.)
             if (takes instanceof Keep) k.keep();
             own.state = only.state();
-            pass(only.value(), after, around);
+            pass(only.value(), after, around, deep);
           } else {
             // The rest is taken off, with its parts: they are the rest's now, and run by no one. The clause is a
             // program of what is around that part; under it, a mark: was the rest gone on with.
-            run(does, takes instanceof Keep ? own.rest : new Taken<>(k, own.rest), own.outer);
+            go(does, takes instanceof Keep ? own.rest : new Taken<>(k, own.rest), own.outer, deep);
           }
         }
       }
@@ -523,46 +552,70 @@ public final class Fx {
      * inside the handler's own have the states they had when it asked; its own has `next`; those around it are the
      * ones run now, as they are.
      */
-    private <X, S, B, R, Y> void resume(Resume<X, S, B, R> on, Rest<B, Y> rest, Around<Y, Z> around) {
-      back(on.k(), on, rest, around);
+    private <X, S, B, R, Y> void resume(Resume<X, S, B, R> on, Rest<B, Y> rest, Around<Y, Z> around, int deep) {
+      back(on.k(), on, rest, around, deep);
     }
 
     private <X, T, S, B, R, Y> void back(K<X, T, S, B, R> k, Resume<X, S, B, R> on, Rest<B, Y> rest,
-                                         Around<Y, Z> around) {
+                                         Around<Y, Z> around, int deep) {
       k.gone = true;
       if (rest instanceof Taken<B, Y> mark && mark.k == k) rest = mark.after;     // the clause ends with this: its mark
-      pass(on.value(), k.rest, k.onto(on.state(), rest, around));
+      pass(on.value(), k.rest, k.onto(on.state(), rest, around), deep);
     }
 
     /** A value is given to the steps: to the next of them, or — none left — to the part. */
-    private <A, Y> void give(A value, Rest<A, Y> rest, Around<Y, Z> around) {
+    private <A, Y> void give(A value, Rest<A, Y> rest, Around<Y, Z> around, int deep) {
       switch (rest) {
-        case Then<A, ?, Y> step -> then(step, value, around);
-        case Mapping<A, ?, Y> step -> mapped(step, value, around);
+        case Then<A, ?, Y> step -> then(step, value, around, deep);
+        case Mapping<A, ?, Y> step -> mapped(step, value, around, deep);
         case Closing<A, Y> mark -> {                      // the part it was for has ended
-          mark.close.run();
-          pass(value, mark.after, around);
+          try {
+            mark.close.run();
+          } catch (Throwable thrown) {
+            failed(thrown, mark.after, around);     // this one is not to be run again
+            throw thrown;
+          }
+          pass(value, mark.after, around, deep);
         }
         case Taken<A, Y> mark -> {                        // its clause has ended: was the rest gone on with?
-          if (!mark.k.gone) mark.k.left(null);
-          pass(value, mark.after, around);
+          try {
+            if (!mark.k.gone) mark.k.left(null);
+          } catch (Throwable thrown) {
+            failed(thrown, mark.after, around);
+            throw thrown;
+          }
+          pass(value, mark.after, around, deep);
         }
-        case End<?> none -> ended(rest.end(value), around);
+        case End<?> none -> ended(rest.end(value), around, deep);
       }
     }
 
-    private <A, X, Y> void then(Then<A, X, Y> step, A value, Around<Y, Z> around) {
-      run(step.next.apply(value), step.after, around);
+    private <A, X, Y> void then(Then<A, X, Y> step, A value, Around<Y, Z> around, int deep) {
+      Comp<X, ?> next;
+      try {
+        next = step.next.apply(value);
+      } catch (Throwable thrown) {
+        failed(thrown, step.after, around);
+        throw thrown;
+      }
+      go(next, step.after, around, deep);
     }
 
-    private <A, X, Y> void mapped(Mapping<A, X, Y> step, A value, Around<Y, Z> around) {
-      pass(step.f.apply(value), step.after, around);
+    private <A, X, Y> void mapped(Mapping<A, X, Y> step, A value, Around<Y, Z> around, int deep) {
+      X mapped;
+      try {
+        mapped = step.f.apply(value);
+      } catch (Throwable thrown) {
+        failed(thrown, step.after, around);
+        throw thrown;
+      }
+      pass(mapped, step.after, around, deep);
     }
 
     /** The end of a part: what its handler gives goes on below; and the end of them all. */
-    private <Y> void ended(Y value, Around<Y, Z> around) {
+    private <Y> void ended(Y value, Around<Y, Z> around, int deep) {
       switch (around) {
-        case In<?, ?, Y, ?, ?, ?, Z> part -> ret(part, value);
+        case In<?, ?, Y, ?, ?, ?, Z> part -> ret(part, value, deep);
         case Top<?> none -> {
           result = around.result(value);
           done = true;
@@ -570,21 +623,36 @@ public final class Fx {
       }
     }
 
-    private <F, S, A, B, R, Y> void ret(In<F, S, A, B, R, Y, Z> part, A value) {
-      pass(part.handler.ret.apply(part.state, value), part.rest, part.outer);
+    private <F, S, A, B, R, Y> void ret(In<F, S, A, B, R, Y, Z> part, A value, int deep) {
+      B given;
+      try {
+        given = part.handler.ret.apply(part.state, value);
+      } catch (Throwable thrown) {
+        failed(thrown, part.rest, part.outer);
+        throw thrown;
+      }
+      pass(given, part.rest, part.outer, deep);
+    }
+
+    /** It failed here: the steps and the parts it was at are put down, once — where it was thrown, not above. */
+    private void failed(Throwable thrown, Rest<?, ?> rest, Around<?, Z> around) {
+      if (!failed) {
+        failed = true;
+        this.rest = rest; this.around = around;
+      }
     }
 
     /** Where it failed is added to the exception, and every part still open is closed, the innermost first. */
-    private void failed(Throwable thrown) {
+    private void close(Throwable thrown) {
       String in = "";
       for (Around<?, ?> at = around; at instanceof In<?, ?, ?, ?, ?, ?, ?> part; at = part.outer) {
         in += " " + part.handler.effect.getSimpleName();
       }
       thrown.addSuppressed(new Where("the program had last asked " + asked + "; handlers in force, the nearest first:"
           + (in.isEmpty() ? " none" : in)));
-      close(rest, thrown);
+      Fx.close(rest, thrown);
       for (Around<?, ?> at = around; at instanceof In<?, ?, ?, ?, ?, ?, ?> part; at = part.outer) {
-        close(part.rest, thrown);
+        Fx.close(part.rest, thrown);
       }
     }
   }
