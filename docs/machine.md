@@ -1,63 +1,93 @@
 # The machine
 
-How `Fx.run` works, for someone reviewing `Fx.java`. It is one loop of about ninety lines; the rest of the file
-is types.
+How `Fx.run` works, for someone reviewing `Fx.java`. The machine is a trampoline of typed moves: about a
+hundred and seventy lines, the last part of the file; the rest of the file is types.
 
 ## A program is a tree
 
-Seven records, of which a user makes five:
+Nine records, of which a user makes seven:
 
 | Node | Made by | Means |
 |---|---|---|
 | `Pure(value)` | `pure` | a value |
 | `Perform(op)` | `perform` | ask an operation |
+| `Asking(op, next)` | `perform(op).flatMap(next)` | ask an operation, then the program `next` makes of its answer |
 | `FlatMap(first, next)` | `flatMap` | `first`, then the program `next` makes of its value |
 | `Mapped(first, f)` | `map` | `first`, then the value `f` makes of its value |
 | `Ensure(part, after)` | `ensuring` | `part`, and `after` when it ends |
+| `Defer(program)` | `defer` | the program, made when it is reached |
 | `Part(handler, part)` | `row()…handle` | `part` with a handler around it |
 | `Resume(k, value, state)` | `k.apply` | go on with a rest that was taken |
 
 Making a node does nothing. `R`, the row, is only in the types: nothing of it is in a node.
 
-## What the loop holds
+## What the machine is at
 
-| Variable | Is |
+Three things, at any moment: a program to run, the steps that will take its value, and the parts — one for
+each handler in force — those steps end in. Their types say how they fit:
+
+| Type | Is |
 |---|---|
-| `now` | the node being run |
-| `rest` | the steps of the part being run: what to do with the value of `now`, innermost first |
-| `around` | the parts being run, innermost first: for each its handler, that handler's state, and the steps after it |
-| `asked` | the operation asked last, for `Fx.Where` |
+| `Comp<A, ?>` | a program that gives an `A` |
+| `Rest<A, Y>` | the steps of the part being run: from a value of `A` to the value of that part, `Y` |
+| `Around<Y, Z>` | the parts being run, innermost first: the innermost gives `Y`, the whole program `Z` |
 
-`rest` and `around` are linked lists. The steps are never changed; a part's state moves on where it is, in the
-part's own record. That is what lets a rest be a value: to take it is to keep two pointers.
+A program of `A` can be run only with steps from `A` and parts from where those steps end. That is all of the
+machine's correctness, and javac checks it at every move.
 
-A step is one of four, a sealed type: `Then` (of `flatMap`: a program of the value so far), `Mapping` (of `map`: a
-value of it), and two marks the value passes — `Closing` (of `ensuring`: the part it was for has ended) and
-`Taken` (under a clause: the rest that clause was given).
+A step is one of five, a sealed type `Rest<A, Z>`: `Then` (of `flatMap`: a program of the value so far),
+`Mapping` (of `map`: a value of it), two marks the value passes — `Closing` (of `ensuring`: the part it was for
+has ended) and `Taken` (under a clause: the rest that clause was given) — and `End`, no steps, where `A` is `Z`.
+A part is `In<F, S, A, B, R, Y, Z>`: its handler `Fold<F, S, A, B, R>` and that handler's state `S`, together;
+the steps after the part, `Rest<B, Y>` — they take what the handler gives; and the part around it,
+`Around<Y, Z>`. `Top` is no part, where `A` is `Z`.
 
-## One turn
+Java's `switch` does not learn from a case that two types are one. So `End` and `Top` say it by a method that
+only they have: `Rest.end(value)` gives the value as the part's, `Around.result(value)` as the program's.
 
-The loop looks at `now`:
+## A trampoline
 
-- **`Pure`** — there is a value. Take the next step from `rest`.
-- **`FlatMap`, `Mapped`** — put the function on `rest`, go into `first`.
-- **`Asking`** — `perform(op).flatMap(next)`, as one node: as `Perform`, and where the operation is answered in
-  place its answer is given to `next` at once, with no step put.
-- **`Ensure`** — put a mark on `rest` that holds `after`, go into the part.
-- **`Part`** — put a record on `around` (the handler, and the current `rest` as the steps after the part), start
-  the part with an empty `rest` and the handler's initial state.
-- **`Perform`** — find the nearest part whose handler's effect the operation is of, ask its `cases` for the
-  clause. If the clause is an `answer`, there is a value at once and nothing moves. Otherwise the rest is
-  taken (below).
+What the machine is at is itself a value of an algebraic type, `At<Z>`:
+
+| | |
+|---|---|
+| `Run<A, Y, Z>(now, rest, around)` | a program to run |
+| `Give<A, Y, Z>(value, rest, around)` | a value for the steps |
+| `Done<Z>(result)` | the program has ended |
+
+`A` and `Y` are hidden in it, as the answer's type is in a `Case`. A move takes one and gives the next, and
+one loop does that until the next is `Done`:
+
+```java
+while (!(at instanceof Done<Z> done)) at = at.next(this);
+```
+
+No move is left on the stack when the next begins: a program of a million steps takes a constant amount of
+the Java stack, and its depth is in `rest`. Three things keep a move from costing an object each time:
+
+- A `Run` moves on in place where only its program changes — an operation answered in place, `defer`. The
+  steps, the parts and `A` are the same, so it is typed as it stands.
+- A value passes up to `STEPS` (four) steps within one move, and a move goes up to four nodes down into a
+  program, before it gives the next its turn. The number is a constant: the stack a move takes is bounded.
+
+## One move
+
+`run` looks at the node:
+
+- **`Pure`** — there is a value: give it to the steps.
+- **`FlatMap`, `Mapped`** — put the function on the steps, go into `first`.
+- **`Perform`, `Asking`** — find the nearest part whose handler's effect the operation is of, ask its `cases`
+  for the clause. If it is an `answer`, there is a value at once and nothing moves: `Perform` gives it to the
+  steps, `Asking` runs the program `next` makes of it. Otherwise the rest is taken (below).
+- **`Ensure`** — put a mark on the steps that holds `after`, go into the part.
+- **`Part`** — a new part: the handler, its initial state, the steps so far as the steps after the part; the
+  part's program is run with no steps yet.
 - **`Resume`** — put a rest back (below).
+- **`Defer`** — make the program, run it.
 
-Then, with a value: while `rest` is empty, a part has ended — apply its handler's `ret` to its state and the
-value, and continue with the steps after it. If there is no part left, the value is the result. Otherwise take
-a step: a mapped step makes a value and the loop takes the next; a `flatMap` step makes a program, which becomes
-`now`.
-
-No call of the loop is ever nested in another. A program of a million steps uses a constant amount of the Java
-stack; its depth is in `rest`.
+`give` looks at the steps: a `Then` makes a program, which is run; a `Mapping` makes a value, which is given
+on; a mark is passed; and at `End` a part has ended — its handler's `ret`, of its state and the value, gives
+what goes to the steps after it — or, at `Top`, the program has.
 
 ## Taking the rest
 
@@ -83,7 +113,7 @@ of the clause — a program of its own, the rest gone on with later or twice, th
 
 ## Putting it back
 
-`k.apply(answer, next)` makes a `Resume` node. When the loop reaches it:
+`k.apply(answer, next)` makes a `Resume` node. When the machine reaches it:
 
 ```
 around now:  [A']                   around after:  [C'] [B'] [H'] [A']
@@ -103,8 +133,8 @@ With its handler: a part's record holds the handler and that handler's state, of
 clause that goes on with `k.apply(answer, next)` — is written there, whichever part it is: the innermost and the
 outermost cost the same.
 
-It may be written in place because a part that is run is the loop's alone. A rest taken off takes its parts
-with it, and the loop goes on with those around; a rest gone on with is given parts made anew. Only a rest that
+It may be written in place because a part that is run is the machine's alone. A rest taken off takes its parts
+with it, and the machine goes on with those around; a rest gone on with is given parts made anew. Only a rest that
 may be *kept* while its parts go on being run (`keep`) takes parts of its own at once
 (`ScenariosTest.theStatesOfARestTakenOffAreItsOwn`, `partsDeepOneInAnotherKeepTheirStatesOnEveryWay`).
 
@@ -113,11 +143,12 @@ may be *kept* while its parts go on being run (`keep`) takes parts of its own at
 - No field of a node or a step is ever written after it is made. Two things are: the state of a part that is
   being run, and `K.gone`, a flag that only ever goes from false to true.
 - A part a rest holds is never run: the rest goes on with parts made anew of it.
-- The seven places marked unchecked: the phantom row in `flatMap` and in `map`; the handlers put so far, kept as
-  a function of a program of any type; the result of `handle`; the loop; and the two that open a hidden type for
-  it — a part's handler with its state's type (`Around.handler`) and a clause with its answer's (`erased`). The loop is where the types that
-  `Case`, `Handler` and the nodes hide are opened: its registers — `value`, and a part as the loop holds it — hold what each
-  step, in its turn, has a type for, and a variable of a Java loop has one type. Nothing else is erased: the
-  nodes, a clause (`Case` over its four kinds), a handler (`Handler` over `Fold`) and a step are typed. What guards the
-  loop is `on` (the answer type is the operation's), the two sealed types, and the test that a clause was made
-  for the operation asked.
+- When a program fails, what was to be closed is found from the `At` the failing move began with — or, for a
+  closing that itself fails, the one after it, so that it is not run twice.
+- The places marked unchecked, and what guards each. Three are a hidden type opened by an identity: the answer
+  of a case, and the clause of one, are of the operation asked because the case was made for that very
+  operation (`made`); what a clause gave is its own rest gone on with because it is that very object
+  (`K.only`). One is a part made anew as the part it replaces (`K.its`). One is an operation as one of its
+  handler's effect, which the machine has just tested (`Fold.of`). Two are the one `End` and the one `Top`, of
+  any type. The rest are outside the machine: the phantom row in `flatMap` and `map`, and the handlers being
+  put, kept as a function of a program of any type.

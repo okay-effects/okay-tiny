@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 290 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 408 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -30,8 +30,9 @@ found again.
 Nothing is weakly typed where a type exists. What has several kinds is a sealed type of records, one for each
 kind — the nodes of a program, the steps of the machine. What must hide a type from the outside hides it as an
 existential: a sealed interface without that type, over private records with it — `Case` over `Answer<X, ..>`,
-`On<X, ..>`, `Keep<X, ..>` and `Leave` (the answer's type), `Handler` over `Fold<.., S, ..>` (the state's). Only the registers of the machine's loop are
-`Object`, and `docs/machine.md` says why.
+`On<X, ..>`, `Keep<X, ..>` and `Leave` (the answer's type), `Handler` over `Fold<.., S, ..>` (the state's), and
+what the machine is at, `At<Z>`, over `Run<A, Y, Z>`, `Give<A, Y, Z>` and `Done<Z>`. Nothing in the machine is
+`Object`: `docs/machine.md` has the types and the few places taken on trust.
 
 ## 2. What Java forced
 
@@ -76,7 +77,11 @@ existential: a sealed interface without that type, over private records with it 
 
 ## 3. The machine
 
-One loop. The rest of the program is a stack of parts — one for each handler in force — each a stack of steps.
+A trampoline of typed moves. The rest of the program is a stack of parts — one for each handler in force — each
+a stack of steps: steps are `Rest<A, Y>`, from a value of `A` to the value of their part; parts are
+`Around<Y, Z>`, from what the innermost gives to what the program does. What the machine is at is a value,
+`At<Z>` — a program of `A` to run, or a value of `A` to give, with steps from `A` to `Y` and parts from `Y` to
+`Z` — and a move takes one and gives the next. javac checks that the three fit at every move.
 
 - `perform(op)`: the nearest part whose handler's effect the operation is of is found. A clause made by `answer`
   is answered in place, nothing taken off. Otherwise the rest, to the end of that part, is taken off as `k`, and
@@ -86,7 +91,7 @@ One loop. The rest of the program is a stack of parts — one for each handler i
   is `next`. They go back as parts made anew of those taken off, which the rest goes on holding.
 - The end of a part: `ret` of the handler's state and the part's value.
 - The state of a handler is in the record of its part, with the handler, and moves on there: a new state is
-  one write, whichever part it is. A part that is run is the loop's alone — a rest taken off takes its parts
+  one write, whichever part it is. A part that is run is the machine's alone — a rest taken off takes its parts
   with it, and goes on with parts made anew — so nothing is copied to keep a rest's states its own.
 
 ## 3a. Leaving, closing, failing
@@ -122,6 +127,8 @@ One loop. The rest of the program is a stack of parts — one for each handler i
 | a block of named answers asked in rounds (`plan`) | it lived on sets of operations |
 | the state in the stack's records | a handler with a state outside six others cost 57 ns an operation, not 30 |
 | the effect's class read from an empty varargs array | see above |
+| the machine as one loop over variables of type `Object` — the program, the value, the steps, the parts — with casts where a hidden type was opened | a trampoline of typed moves over `At<Z>`. A state costs the same or less; an operation answered in place 6.7 ns, not 5.2; 118 lines more |
+| the typed moves calling each other, the three put down in fields every 32 calls | a call stack as the mechanism; the trampoline needs no fields and reads nothing on trust |
 | a clause as one record for its four kinds (`answer`, `on`, `keep`, `leave`), with fields left empty and a flag | a sealed type of four records, each with what it needs: `leave` has no operation and no answer's type. An operation answered in place costs the same; one whose clause takes the rest, the same to 2 ns more |
 | a step as one record with flags (`mapped`) and a mark of type `Object`; `Case` and `Handler` as classes with `Object` fields | each is a sealed type over records now, the hidden type an existential inside: fewer casts, and the step 2 to 6 ns an operation faster |
 | the states of the handlers in an array by the depth of their parts, the innermost in a variable of the loop; copied before a write once a rest had it | each state is in its part's record, with its handler: no array, no depth, no copying. 22 lines less, and a state outermost of seven costs 16.4 ns, not 19.4 |
@@ -133,13 +140,13 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 
 | | ns |
 |---|---|
-| `answer`, the handler the innermost of seven | 5.0 |
-| `answer`, the handler the outermost of seven | 11.6 |
-| an answer and two `map` | 17 or 22, from one run to the next |
-| a counter (a state that moves on at every operation), alone | 9.0 |
-| the counter the innermost of seven | 9.6 |
-| the counter the outermost of three | 11.4 |
-| the counter the outermost of seven | 16.4 |
+| `answer`, the handler the innermost of seven | 6.7 |
+| `answer`, the handler the outermost of seven | 13.7 |
+| an answer and two `map` | 22.2 |
+| a counter (a state that moves on at every operation), alone | 9.4 |
+| the counter the innermost of seven | 9.4 |
+| the counter the outermost of three | 11.7 |
+| the counter the outermost of seven | 17.0 |
 
 A free monad makes five or six small objects for an operation; that is the floor. Next to a query to a database
 it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark
