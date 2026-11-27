@@ -5,6 +5,7 @@ import static okay.tiny.Fx.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -20,52 +21,72 @@ import java.util.function.Supplier;
  * with what Fx gives, and is a pattern for an application's own.
  *
  * <p>An effect with a type argument is one effect whatever the argument: a handler is found by the effect's class.
- * Two states of two types in one program are told apart by where their handlers are put, not by their types.
+ * So the state, the failure, what is told and what is given are each asked with a {@link Key}, and a handler answers
+ * the operations of its own key: that is what makes the type of an answer the type its handler holds.
  */
 public final class Std {
   private Std() {}
 
+  // ---- a key: which one --------------------------------------------------------------------------------------------
+
+  /**
+   * A name for one state, one kind of failure, one stream of things told, one thing given: {@code static final
+   * Key<Integer> COUNT = key("count")}. The operations asked with a key are answered by the handler put with that
+   * key, and by no other handler of the effect — it passes them on. So the type an operation is answered with is
+   * the type its handler holds: they are of one key, and a key is of one type. And a handler put by a method around
+   * a part it knows nothing of answers only what that method itself asks; what the part asks of another key goes
+   * on outside, to its own handler.
+   */
+  public static final class Key<T> {
+    private final String name;
+    private Key(String name) { this.name = name; }
+    @Override public String toString() { return name; }
+  }
+
+  public static <T> Key<T> key(String name) { return new Key<>(Objects.requireNonNull(name, "a name")); }
+
   // ---- a state: read and written. Its handler is the state monad ---------------------------------------------------
 
   public sealed interface State<S> {
-    record Get<S>() implements State<S>, Op<S, State<S>> {}
-    record Put<S>(S state) implements State<S>, Op<Void, State<S>> {}
+    record Get<S>(Key<S> key) implements State<S>, Op<S, State<S>> {}
+    record Put<S>(Key<S> key, S state) implements State<S>, Op<Void, State<S>> {}
   }
 
-  public static <S, R extends State<S>> Comp<S, R> get() { return perform(new State.Get<S>()); }
+  public static <S, R extends State<S>> Comp<S, R> get(Key<S> key) { return perform(new State.Get<>(key)); }
 
-  public static <S, R extends State<S>> Comp<Void, R> put(S state) { return perform(new State.Put<>(state)); }
+  public static <S, R extends State<S>> Comp<Void, R> put(Key<S> key, S state) {
+    return perform(new State.Put<>(key, state));
+  }
 
-  public static <S, R extends State<S>> Comp<Void, R> update(Function<S, S> f) {
-    return Std.<S, R>get().flatMap(s -> put(f.apply(s)));
+  public static <S, R extends State<S>> Comp<Void, R> update(Key<S> key, Function<S, S> f) {
+    return Std.<S, R>get(key).flatMap(s -> put(key, f.apply(s)));
   }
 
   /** What a part gives under a state: its value, and the state it ended with. */
   public record Final<S, A>(S state, A value) {}
 
-  public static <S, A, R> Handler<State<S>, A, Final<S, A>, R> state(S initial) {
+  public static <S, A, R> Handler<State<S>, A, Final<S, A>, R> state(Key<S> key, S initial) {
     return folding(Std.<State<S>>of(State.class), initial, Final::new, op -> switch (op) {
-      case State.Get<S> get -> on(get, (s, k) -> k.apply(s, s));
-      case State.Put<S> put -> on(put, (s, k) -> k.apply(null, put.state()));
+      case State.Get<S> get -> get.key() != key ? pass() : on(get, (s, k) -> k.apply(s, s));
+      case State.Put<S> put -> put.key() != key ? pass() : on(put, (s, k) -> k.apply(null, put.state()));
     });
   }
 
   // ---- a failure: the part does not go on. Its handlers are the option and the either monads -----------------------
 
   public sealed interface Fail<E> {
-    record Raise<E>(E error) implements Fail<E>, Op<Void, Fail<E>> {}
+    record Raise<E>(Key<E> key, E error) implements Fail<E>, Op<Void, Fail<E>> {}
   }
 
   /** Of any type: its answer never comes. */
-  public static <E, T, R extends Fail<E>> Comp<T, R> fail(E error) {
-    return perform(new Fail.Raise<>(error)).map(never -> null);
+  public static <E, T, R extends Fail<E>> Comp<T, R> fail(Key<E> key, E error) {
+    return perform(new Fail.Raise<>(key, error)).map(never -> null);
   }
 
-  /** `errors` only names the type of the failures, which javac cannot infer where the handler is put. */
-  public static <E, A, R> Handler<Fail<E>, A, Optional<A>, R> option(Class<E> errors) { return option(); }
-
-  public static <E, A, R> Handler<Fail<E>, A, Optional<A>, R> option() {
-    return folding(Std.<Fail<E>>of(Fail.class), null, (s, a) -> Optional.of(a), op -> leave(Optional.empty()));
+  public static <E, A, R> Handler<Fail<E>, A, Optional<A>, R> option(Key<E> key) {
+    return folding(Std.<Fail<E>>of(Fail.class), null, (s, a) -> Optional.of(a), op -> switch (op) {
+      case Fail.Raise<E> raise -> raise.key() != key ? pass() : on(raise, (s, k) -> pure(Optional.empty()));
+    });
   }
 
   public sealed interface Result<E, A> {
@@ -73,45 +94,44 @@ public final class Std {
     record Failed<E, A>(E error) implements Result<E, A> {}
   }
 
-  public static <E, A, R> Handler<Fail<E>, A, Result<E, A>, R> result(Class<E> errors) { return result(); }
-
-  public static <E, A, R> Handler<Fail<E>, A, Result<E, A>, R> result() {
+  public static <E, A, R> Handler<Fail<E>, A, Result<E, A>, R> result(Key<E> key) {
     return folding(Std.<Fail<E>>of(Fail.class), null, (s, a) -> new Result.Ok<>(a), op -> switch (op) {
-      case Fail.Raise<E> raise -> on(raise, (s, k) -> pure(new Result.Failed<>(raise.error())));
+      case Fail.Raise<E> raise -> raise.key() != key ? pass()
+          : on(raise, (s, k) -> pure(new Result.Failed<>(raise.error())));
     });
   }
 
   // ---- something told on the way. Its handler is the writer monad --------------------------------------------------
 
   public sealed interface Emit<X> {
-    record Tell<X>(X item) implements Emit<X>, Op<Void, Emit<X>> {}
+    record Tell<X>(Key<X> key, X item) implements Emit<X>, Op<Void, Emit<X>> {}
   }
 
-  public static <X, R extends Emit<X>> Comp<Void, R> tell(X item) { return perform(new Emit.Tell<>(item)); }
+  public static <X, R extends Emit<X>> Comp<Void, R> tell(Key<X> key, X item) {
+    return perform(new Emit.Tell<>(key, item));
+  }
 
   /** What a part gives with what it told. */
   public record Told<X, A>(List<X> items, A value) {}
 
-  /** `items` only names the type of what is told. */
-  public static <X, A, R> Handler<Emit<X>, A, Told<X, A>, R> told(Class<X> items) { return told(); }
-
-  public static <X, A, R> Handler<Emit<X>, A, Told<X, A>, R> told() {
+  public static <X, A, R> Handler<Emit<X>, A, Told<X, A>, R> told(Key<X> key) {
     return folding(Std.<Emit<X>>of(Emit.class), List.<X>of(), Told::new, op -> switch (op) {
-      case Emit.Tell<X> tell -> on(tell, (items, k) -> k.apply(null, plus(items, tell.item())));
+      case Emit.Tell<X> tell -> tell.key() != key ? pass()
+          : on(tell, (items, k) -> k.apply(null, plus(items, tell.item())));
     });
   }
 
   // ---- something given from outside. Its handler is the reader monad -----------------------------------------------
 
   public sealed interface Env<E> {
-    record Ask<E>() implements Env<E>, Op<E, Env<E>> {}
+    record Ask<E>(Key<E> key) implements Env<E>, Op<E, Env<E>> {}
   }
 
-  public static <E, R extends Env<E>> Comp<E, R> ask() { return perform(new Env.Ask<E>()); }
+  public static <E, R extends Env<E>> Comp<E, R> ask(Key<E> key) { return perform(new Env.Ask<>(key)); }
 
-  public static <E, A, R> Handler<Env<E>, A, A, R> env(E value) {
+  public static <E, A, R> Handler<Env<E>, A, A, R> env(Key<E> key, E value) {
     return handling(Std.<Env<E>>of(Env.class), op -> switch (op) {
-      case Env.Ask<E> ask -> answer(ask, value);
+      case Env.Ask<E> ask -> ask.key() != key ? pass() : answer(ask, value);
     });
   }
 

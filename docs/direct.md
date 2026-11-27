@@ -32,9 +32,9 @@ other program.
 ## What you get
 
 - **The row is checked by javac**, of the chain the plugin wrote: an effect the row has not is an error.
-- **Types are inferred** where a chain has to be told them: `Integer before = $(get());` needs no
-  `Std.<Integer, R>get()`. The rewritten code gives javac both programs as arguments (`Do.bind`), and it infers
-  the first from what the second takes.
+- **Types are inferred** where a chain has to be told them: `List<Integer> prices = $(collect(lines, ..));`
+  needs no `Std.<Line, Integer, R>collect(..)`. The rewritten code gives javac both programs as arguments
+  (`Do.bind`), and it infers the first from what the second takes.
 - **Nothing is run when the program is made**: the whole body is put off (`defer`), so `place(lines)` is a
   value, and running it twice runs the body twice.
 - **The rest after a `$` is a value**, as after any operation: a handler may leave it (nothing after the `$` is
@@ -82,9 +82,7 @@ And javac's own, of what was written:
 
 - **Every `$` of a statement is run before the statement.** In `log(a()) + $(p)` the program `p` is run first,
   and then `a()`: put what must come first in a statement of its own.
-- **An editor without the plugin** sees `$` as an ordinary method and the code as ordinary Java, and is content
-  — with one exception: a `$` of a generic effect with nothing to say its type, `$(get()) + $(get())`, which the
-  build infers and the editor may not. `Integer a = $(get());` is clear to both.
+- **An editor without the plugin** sees `$` as an ordinary method and the code as ordinary Java, and is content.
 - **A bare block `{ .. }` with a `$`** is rewritten as if its braces were not there.
 - **Called without the plugin**, `$` throws and says so.
 

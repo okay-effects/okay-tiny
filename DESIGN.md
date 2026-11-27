@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 408 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 419 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -52,6 +52,16 @@ what the machine is at, `At<Z>`, over `Run<A, Y, Z>`, `Give<A, Y, Z>` and `Done<
   `Eff<?> & ..`, a `case` still does not refine `T`, and `Get<S> implements State<S, S>` cannot be matched. A
   record that names another effect than its own is caught where its effect's handler is written: the clause is
   of the other effect (`OperationOfAnotherFamily`).
+- **A handler is found by the class of its effect, and may pass.** The class is all the machine has of an effect:
+  `State<Integer>` and `State<String>` are one to it. javac refuses the two in one row, but not where a row is
+  hidden: a method generic in its part's row puts a `State<String>` around the part, the part asks a
+  `State<Integer>` meant for outside, and it was answered with a `String` — `ClassCastException`, in a program
+  javac had passed. What closes it is identity: `pass()`, a clause that says *not mine, ask the next handler
+  outside*, and in `Std` a `Key<T>` that the operations and their handler share. A handler answers the
+  operations of its own key, so the type an operation is answered with is the type its handler holds. It is
+  the family's `mine` (the TCK asks for it, and `TckTest` now says it with `pass()`). A row with nothing of an
+  effect in it cannot be said in Java, so this is checked when the program runs, not before: an operation
+  whose key has no handler is *no handler for* it.
 - **One effect of a class in a row.** `<R extends State<Integer> & State<String>>` is refused by javac, which is
   as well: a handler is found by the effect's class.
 - **Completeness is javac's.** A handler is `op -> switch (op) { .. }` over a sealed interface, and a `switch`
@@ -129,6 +139,7 @@ a stack of steps: steps are `Rest<A, Y>`, from a value of `A` to the value of th
 | the effect's class read from an empty varargs array | see above |
 | the machine as one loop over variables of type `Object` — the program, the value, the steps, the parts — with casts where a hidden type was opened | a trampoline of typed moves over `At<Z>`. A state costs the same or less; an operation answered in place 6.7 ns, not 5.2; 118 lines more |
 | the typed moves calling each other, the three put down in fields every 32 calls | a call stack as the mechanism; the trampoline needs no fields and reads nothing on trust |
+| `Std`'s effects without keys: `get()`, `state(0)`, `option(String.class)` | a handler answered every operation of its effect's class, of whatever type: see section 2. With a key the types at a chain's start are javac's too — `update(COUNT, n -> n + 1)`, not `Std.<Integer, R>update(..)` — and a class is no longer passed only to name a type |
 | a clause as one record for its four kinds (`answer`, `on`, `keep`, `leave`), with fields left empty and a flag | a sealed type of four records, each with what it needs: `leave` has no operation and no answer's type. An operation answered in place costs the same; one whose clause takes the rest, the same to 2 ns more |
 | a step as one record with flags (`mapped`) and a mark of type `Object`; `Case` and `Handler` as classes with `Object` fields | each is a sealed type over records now, the hidden type an existential inside: fewer casts, and the step 2 to 6 ns an operation faster |
 | the states of the handlers in an array by the depth of their parts, the innermost in a variable of the loop; copied before a write once a rest had it | each state is in its part's record, with its handler: no array, no depth, no copying. 22 lines less, and a state outermost of seven costs 16.4 ns, not 19.4 |
@@ -140,13 +151,13 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 
 | | ns |
 |---|---|
-| `answer`, the handler the innermost of seven | 6.7 |
-| `answer`, the handler the outermost of seven | 13.7 |
-| an answer and two `map` | 22.2 |
-| a counter (a state that moves on at every operation), alone | 9.4 |
-| the counter the innermost of seven | 9.4 |
-| the counter the outermost of three | 11.7 |
-| the counter the outermost of seven | 17.0 |
+| `answer`, the handler the innermost of seven | 7.5 |
+| `answer`, the handler the outermost of seven | 14.2 |
+| an answer and two `map` | 22.6 |
+| a counter (a state that moves on at every operation), alone | 10.1 |
+| the counter the innermost of seven | 10.5 |
+| the counter the outermost of three | 12.0 |
+| the counter the outermost of seven | 18.4 |
 
 A free monad makes five or six small objects for an operation; that is the floor. Next to a query to a database
 it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark
@@ -180,6 +191,9 @@ An answer cost 10.1 ns and costs 6.9 (the innermost of seven), 15.2 and 12.3 (th
 takes nothing off and puts nothing back — it sets the state and gives the answer. This is the general case of
 which `answer(op, value)` is one; no word of its own was needed (one was tried: `answer(op, s -> x, s -> next)`).
 A counter cost 18.9 ns and costs 9.0; outermost of seven, 33 and 16.4.
+
+**That a handler may pass costs every operation about 0.6 ns**: the search for a handler goes on where the one
+found says the operation is not its own, so it is no longer the last thing done.
 
 ## 6. What is not here
 

@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test;
  * programs — handlers of logs, states, failures and choices one in another in any order, each effect under two
  * identities — and the digest of their outcomes, which must be the reference machine's.
  *
- * <p>A handler here answers only the operations of its own identity and asks the others again outside: in okay-tiny
- * that is a clause like any other. A program may be left with an operation nobody answers; that is an outcome of
+ * <p>A handler here answers only the operations of its own identity and passes the others to the next handler of
+ * the effect outside: {@code pass()}. A program may be left with an operation nobody answers; that is an outcome of
  * the TCK, so the programs are run past javac's check of the row, by one cast.
  */
 class TckTest {
@@ -75,17 +75,12 @@ class TckTest {
     record AmongOp(List<Integer> values) implements Choose, Op<Integer, Choose> {}
   }
 
-  /** Not its own: asked again outside, and the rest goes on with what that answered. */
-  static <X, F, S, B, R extends F> Case<F, S, B, R> pass(Op<X, F> op) {
-    return on(op, (state, k) -> Fx.<X, F, R>perform(op).flatMap(answer -> k.apply(answer, state)));
-  }
-
   record Summed(int sum, int value) {}
 
   static <R extends Log> Comp<Integer, R> writer(int e, Comp<Integer, R> part) {
     Handler<Log, Integer, Summed, R> handler = folding(Log.class, null, (none, a) -> new Summed(0, a),
         op -> switch (op) {
-          case Log.TellOp tell -> tell.e() != e ? pass(tell)
+          case Log.TellOp tell -> tell.e() != e ? pass()
               : on(tell, (none, k) -> k.apply(null, null).map(l -> new Summed(l.sum() + tell.n(), l.value())));
         });
     return Fx.<R, Summed>row().handler(handler).handle(part).map(l -> l.value() * 100 + l.sum());
@@ -99,8 +94,8 @@ class TckTest {
     int[] cell = {s0};
     Handler<Store, Integer, Integer, R> handler = folding(Store.class, null, (none, a) -> a * 10 + cell[0],
         op -> switch (op) {
-          case Store.GetOp get -> get.e() != e ? pass(get) : on(get, (none, k) -> k.apply(cell[0], null));
-          case Store.PutOp put -> put.e() != e ? pass(put) : on(put, (none, k) -> {
+          case Store.GetOp get -> get.e() != e ? pass() : on(get, (none, k) -> k.apply(cell[0], null));
+          case Store.PutOp put -> put.e() != e ? pass() : on(put, (none, k) -> {
             cell[0] = put.n();
             return k.apply(null, null);
           });
@@ -110,7 +105,7 @@ class TckTest {
 
   static <R extends Fail> Comp<Integer, R> fails(int e, Comp<Integer, R> part) {
     Handler<Fail, Integer, Integer, R> handler = handling(Fail.class, op -> switch (op) {
-      case Fail.RaiseOp raise -> raise.e() != e ? pass(raise) : on(raise, (none, k) -> pure(-1 - raise.n()));
+      case Fail.RaiseOp raise -> raise.e() != e ? pass() : on(raise, (none, k) -> pure(-1 - raise.n()));
     });
     return Fx.<R, Integer>row().handler(handler).handle(part);
   }

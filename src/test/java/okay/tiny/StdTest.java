@@ -10,39 +10,44 @@ import org.junit.jupiter.api.Test;
 
 /** The usual effects under their handlers; and that the order of two handlers is the order of two monads. */
 class StdTest {
+  static final Key<Integer> COUNT = key("count"), GIVEN = key("given");
+  static final Key<Long> STEPS = key("steps");
+  static final Key<String> ODD = key("odd"), LOG = key("log");
+
   static <R extends State<Integer>> Comp<String, R> counted() {
-    return Std.<Integer, R>update(n -> n + 1).flatMap(x -> Std.<Integer, R>update(n -> n * 10))
-        .flatMap(x -> Std.<Integer, R>get()).map(n -> "at " + n);
+    return update(COUNT, n -> n + 1).flatMap(x -> update(COUNT, n -> n * 10))
+        .flatMap(x -> get(COUNT)).map(n -> "at " + n);
   }
 
   @Test
   void aState() {
-    assertEquals(new Final<>(10, "at 10"), run(Fx.<Final<Integer, String>>top().handler(state(0)).handle(counted())));
+    assertEquals(new Final<>(10, "at 10"),
+        run(Fx.<Final<Integer, String>>top().handler(state(COUNT, 0)).handle(counted())));
   }
 
   static <R extends Fail<String>> Comp<Integer, R> half(int n) {
-    return n % 2 == 0 ? pure(n / 2) : fail("odd: " + n);
+    return n % 2 == 0 ? pure(n / 2) : fail(ODD, "odd: " + n);
   }
 
   @Test
   void aFailure() {
-    assertEquals(Optional.of(2), run(Fx.<Optional<Integer>>top().handler(option(String.class)).handle(half(4))));
-    assertEquals(Optional.empty(), run(Fx.<Optional<Integer>>top().handler(option(String.class)).handle(half(3))));
+    assertEquals(Optional.of(2), run(Fx.<Optional<Integer>>top().handler(option(ODD)).handle(half(4))));
+    assertEquals(Optional.empty(), run(Fx.<Optional<Integer>>top().handler(option(ODD)).handle(half(3))));
     assertEquals(new Result.Ok<String, Integer>(2),
-        run(Fx.<Result<String, Integer>>top().handler(result(String.class)).handle(half(4))));
+        run(Fx.<Result<String, Integer>>top().handler(result(ODD)).handle(half(4))));
     assertEquals(new Result.Failed<String, Integer>("odd: 3"),
-        run(Fx.<Result<String, Integer>>top().handler(result(String.class)).handle(half(3))));
+        run(Fx.<Result<String, Integer>>top().handler(result(ODD)).handle(half(3))));
   }
 
   static <R extends Emit<String> & Env<Integer>> Comp<Integer, R> doubled() {
-    return Std.<Integer, R>ask().flatMap(n -> Std.<String, R>tell("asked " + n)
-        .flatMap(x -> Std.<String, R>tell("doubling")).map(x -> n * 2));
+    return ask(GIVEN).flatMap(n -> tell(LOG, "asked " + n)
+        .flatMap(x -> tell(LOG, "doubling")).map(x -> n * 2));
   }
 
   @Test
   void somethingToldAndSomethingGiven() {
     assertEquals(new Told<>(List.of("asked 21", "doubling"), 42),
-        run(Fx.<Told<String, Integer>>top().handler(env(21)).handler(told(String.class)).handle(doubled())));
+        run(Fx.<Told<String, Integer>>top().handler(env(GIVEN, 21)).handler(told(LOG)).handle(doubled())));
   }
 
   @Test
@@ -53,18 +58,18 @@ class StdTest {
   }
 
   static <R extends State<Integer> & Fail<String>> Comp<String, R> countThenFail() {
-    return Std.<Integer, R>update(n -> n + 1).flatMap(x -> fail("no"));
+    return update(COUNT, n -> n + 1).flatMap(x -> fail(ODD, "no"));
   }
 
   /** The failure inside the state: the state is kept. The state inside the failure: it is lost with the part. */
   @Test
   void theOrderOfTwoHandlersIsTheOrderOfTwoMonads() {
     Final<Integer, Result<String, String>> kept =
-        run(Fx.<Final<Integer, Result<String, String>>>top().handler(state(0)).handler(result(String.class))
+        run(Fx.<Final<Integer, Result<String, String>>>top().handler(state(COUNT, 0)).handler(result(ODD))
             .handle(countThenFail()));
     assertEquals(new Final<>(1, new Result.Failed<String, String>("no")), kept);
     Result<String, Final<Integer, String>> lost =
-        run(Fx.<Result<String, Final<Integer, String>>>top().handler(result(String.class)).handler(state(0))
+        run(Fx.<Result<String, Final<Integer, String>>>top().handler(result(ODD)).handler(state(COUNT, 0))
             .handle(countThenFail()));
     assertEquals(new Result.Failed<String, Final<Integer, String>>("no"), lost);
   }
@@ -72,46 +77,46 @@ class StdTest {
   /** A state inside a choice is one for each way; outside it, one through them all. */
   @Test
   void aStateAndAChoice() {
-    Comp<Integer, Object> each = Fx.<List<Final<Integer, Integer>>>top().handler(all()).handler(state(0))
+    Comp<Integer, Object> each = Fx.<List<Final<Integer, Integer>>>top().handler(all()).handler(state(COUNT, 0))
         .handle(countedWay())
         .map(ways -> ways.stream().mapToInt(Final::state).sum());
     assertEquals(2, run(each));                                              // 1 and 1
-    Comp<Integer, Object> through = Fx.<Final<Integer, List<Integer>>>top().handler(state(0)).handler(all())
+    Comp<Integer, Object> through = Fx.<Final<Integer, List<Integer>>>top().handler(state(COUNT, 0)).handler(all())
         .handle(countedWay())
         .map(Final::state);
     assertEquals(2, run(through));                                           // 1, then 2
   }
 
   static <R extends State<Integer> & Choice> Comp<Integer, R> countedWay() {
-    return Std.<Boolean, R>choose(List.of(true, false)).flatMap(way -> Std.<Integer, R>update(n -> n + 1))
-        .flatMap(x -> Std.<Integer, R>get());
+    return Std.<Boolean, R>choose(List.of(true, false)).flatMap(way -> update(COUNT, n -> n + 1))
+        .flatMap(x -> get(COUNT));
   }
 
   // ---- the usual shapes of a program
 
   static <R extends State<Integer> & Emit<String>> Comp<Integer, R> basket(List<String> items) {
     return Std.<String, R>forEach(items, StdTest::<R>take)
-        .flatMap(x -> Std.<Integer, R>get())
-        .flatMap(sum -> Std.<R>when(sum > 5, tell("heavy")).map(x -> sum));
+        .flatMap(x -> get(COUNT))
+        .flatMap(sum -> Std.<R>when(sum > 5, tell(LOG, "heavy")).map(x -> sum));
   }
 
   static <R extends State<Integer> & Emit<String>> Comp<Void, R> take(String item) {
-    return zip(tell("took " + item), update((Integer n) -> n + item.length()), (told, counted) -> null);
+    return zip(tell(LOG, "took " + item), update(COUNT, n -> n + item.length()), (told, counted) -> null);
   }
 
   @Test
   void aLoopAndAnIf() {
     assertEquals(new Told<>(List.of("took tea", "took cup", "heavy"), new Final<>(6, 6)),
-        run(Fx.<Told<String, Final<Integer, Integer>>>top().handler(told(String.class)).handler(state(0))
+        run(Fx.<Told<String, Final<Integer, Integer>>>top().handler(told(LOG)).handler(state(COUNT, 0))
             .handle(basket(List.of("tea", "cup")))));
     assertEquals(new Told<>(List.of("took tea"), new Final<>(3, 3)),
-        run(Fx.<Told<String, Final<Integer, Integer>>>top().handler(told(String.class)).handler(state(0))
+        run(Fx.<Told<String, Final<Integer, Integer>>>top().handler(told(LOG)).handler(state(COUNT, 0))
             .handle(basket(List.of("tea")))));
   }
 
   /** The body's row may be less than the whole's: one that only tells, in a program that also has a state. */
   static <R extends Emit<String>> Comp<Integer, R> length(String word) {
-    return Std.<String, R>tell(word).map(x -> word.length());
+    return tell(LOG, word).map(x -> word.length());
   }
 
   static <R extends State<Integer> & Emit<String>> Comp<String, R> lengths(List<String> words) {
@@ -120,21 +125,21 @@ class StdTest {
 
   static <R extends State<Integer>> Comp<Integer, R> total(List<String> words) {
     return Std.<String, Integer, R>fold(words, 0, (sum, word) -> pure(sum + word.length()))
-        .flatMap(sum -> Std.<Integer, R>put(sum).map(x -> sum));
+        .flatMap(sum -> put(COUNT, sum).map(x -> sum));
   }
 
   @Test
   void whatEachGaveAndAStateCarriedThrough() {
     assertEquals(new Told<>(List.of("tea", "cup"), new Final<>(6, "[3, 3] = 6")),
-        run(Fx.<Told<String, Final<Integer, String>>>top().handler(told(String.class)).handler(state(0))
+        run(Fx.<Told<String, Final<Integer, String>>>top().handler(told(LOG)).handler(state(COUNT, 0))
             .handle(lengths(List.of("tea", "cup")))));
   }
 
   @Test
   void oneThenTheOtherAndAValueOfBoth() {
-    Comp<String, Env<Integer>> both = zip(Std.<Integer, Env<Integer>>ask(), Fx.<String, Env<Integer>>pure("x"),
+    Comp<String, Env<Integer>> both = zip(ask(GIVEN), Fx.<String, Env<Integer>>pure("x"),
         (n, word) -> word + n);
-    assertEquals("x7", run(Fx.<String>top().handler(env(7)).handle(both)));
+    assertEquals("x7", run(Fx.<String>top().handler(env(GIVEN, 7)).handle(both)));
   }
 
   /** Nothing of a body is run when the program is made; and a long loop takes no stack. */
@@ -143,10 +148,10 @@ class StdTest {
     var made = new java.util.ArrayList<Integer>();
     Comp<Integer, State<Integer>> counting = iterate(0, n -> n < 200_000, n -> {
       made.add(n);
-      return Std.<Integer, State<Integer>>update(count -> count + 1).map(x -> n + 1);
+      return update(COUNT, count -> count + 1).map(x -> n + 1);
     });
     assertEquals(List.of(), made);
-    assertEquals(new Final<>(200_000, 200_000), run(Fx.<Final<Integer, Integer>>top().handler(state(0))
+    assertEquals(new Final<>(200_000, 200_000), run(Fx.<Final<Integer, Integer>>top().handler(state(COUNT, 0))
         .handle(counting)));
 
     List<Integer> many = java.util.stream.IntStream.range(0, 200_000).boxed().toList();
@@ -166,11 +171,11 @@ class StdTest {
   // ---- tail calls: a call that is the last thing a function of flatMap does is a step of the machine
 
   static <R extends State<Long>> Comp<Boolean, R> even(long n) {
-    return n == 0 ? pure(true) : Std.<Long, R>update(count -> count + 1).flatMap(x -> odd(n - 1));
+    return n == 0 ? pure(true) : update(STEPS, count -> count + 1).flatMap(x -> odd(n - 1));
   }
 
   static <R extends State<Long>> Comp<Boolean, R> odd(long n) {
-    return n == 0 ? pure(false) : Std.<Long, R>update(count -> count + 1).flatMap(x -> even(n - 1));
+    return n == 0 ? pure(false) : update(STEPS, count -> count + 1).flatMap(x -> even(n - 1));
   }
 
   static <R> Comp<Boolean, R> evenAsking(long n) { return n == 0 ? pure(true) : defer(() -> oddAsking(n - 1)); }
@@ -181,7 +186,39 @@ class StdTest {
   @Test
   void aTailCallBetweenTwoFunctionsTakesNeitherStackNorHeap() {
     assertEquals(new Final<>(5_000_000L, true),
-        run(Fx.<Final<Long, Boolean>>top().handler(state(0L)).handle(even(5_000_000))));
+        run(Fx.<Final<Long, Boolean>>top().handler(state(STEPS, 0L)).handle(even(5_000_000))));
     assertEquals(false, run(StdTest.<Object>evenAsking(5_000_001)));
+  }
+
+  // ---- a key: a handler answers its own
+
+  static final Key<String> NOTE = key("note");
+
+  /** A method that knows nothing of its part's row puts a state of its own around the part, and uses it. */
+  static <A, R> Comp<Final<String, A>, R> noted(Comp<A, R> part) {
+    return Fx.<R, Final<String, A>>row().handler(state(NOTE, ""))
+        .handle(part.flatMap(a -> put(NOTE, "gave " + a).map(done -> a)));
+  }
+
+  /**
+   * The part has a state too, of another type, to be answered outside. The state `noted` put is between them:
+   * it answers its own key, and passes the part's on. (Found by the class of the effect alone, it would answer
+   * the part's with a String for an Integer.)
+   */
+  @Test
+  void aStatePutAroundAPartDoesNotAnswerThePartsOwn() {
+    assertEquals(new Final<>(10, new Final<>("gave at 10", "at 10")),
+        run(Fx.<Final<Integer, Final<String, String>>>top().handler(state(COUNT, 0))
+            .handle(noted(StdTest.<State<Integer>>counted()))));
+  }
+
+  /** Two states of one type, one inside the other, each with its key. */
+  @Test
+  void twoStatesOfOneType() {
+    Comp<Integer, State<Integer>> both = update(COUNT, n -> n + 1)
+        .flatMap(x -> update(GIVEN, n -> n + 10)).flatMap(x -> zip(get(COUNT), get(GIVEN), (a, b) -> a * 100 + b));
+    assertEquals(new Final<>(1, new Final<>(10, 110)),
+        run(Fx.<Final<Integer, Final<Integer, Integer>>>top().handler(state(COUNT, 0)).handler(state(GIVEN, 0))
+            .handle(both)));
   }
 }

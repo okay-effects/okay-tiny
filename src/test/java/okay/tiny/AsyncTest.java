@@ -19,6 +19,8 @@ import org.junit.jupiter.api.Test;
 
 /** Asynchrony as an effect: one program, a handler that waits and one that does not. */
 class AsyncTest {
+  static final Key<Integer> COUNT = key("count");
+
   /** A service that answers later: each call is a stage the test ends when it likes. */
   static final class Prices {
     final List<String> asked = new ArrayList<>();
@@ -82,7 +84,7 @@ class AsyncTest {
   @Test
   void aStateGoesOnAcrossAWait() {
     Prices prices = new Prices();
-    Comp<Integer, Async> counted = Fx.<Async, Final<Integer, Integer>>row().handler(state(10))
+    Comp<Integer, Async> counted = Fx.<Async, Final<Integer, Integer>>row().handler(state(COUNT, 10))
         .handle(countedPrice(prices.of("a")))
         .map(Final::state);
     CompletableFuture<Integer> state = start(counted);
@@ -91,8 +93,8 @@ class AsyncTest {
   }
 
   static <R extends Async & State<Integer>> Comp<Integer, R> countedPrice(Supplier<CompletionStage<Integer>> price) {
-    return Std.<Integer, R>update(n -> n + 1).flatMap(x -> Std.<Integer, R>await(price))
-        .flatMap(p -> Std.<Integer, R>update(n -> n + p)).map(x -> 0);
+    return update(COUNT, n -> n + 1).flatMap(x -> Std.<Integer, R>await(price))
+        .flatMap(p -> update(COUNT, n -> n + p)).map(x -> 0);
   }
 
   static Supplier<CompletionStage<Integer>> failing(RuntimeException failure) {
@@ -156,7 +158,7 @@ class AsyncTest {
   void theObserverSeesTheOperationsAfterAWaitToo() {
     Prices prices = new Prices();
     List<String> seen = new ArrayList<>();
-    Comp<Integer, Async> program = Fx.<Async, Final<Integer, Integer>>row().handler(state(0))
+    Comp<Integer, Async> program = Fx.<Async, Final<Integer, Integer>>row().handler(state(COUNT, 0))
         .handle(countedPrice(prices.of("a")))
         .map(Final::state);
     CompletableFuture<Integer> state = start(program, op -> seen.add(op.getClass().getSimpleName()));

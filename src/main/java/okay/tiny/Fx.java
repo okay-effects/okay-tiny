@@ -127,6 +127,11 @@ public final class Fx {
   /** leave(value): of any operation of the effect, so with no answer's type; the rest is left. */
   private record Leave<F, S, B, R>(B value) implements Takes<F, S, B, R> {}
 
+  /** pass(): the operation is not this handler's own; the next handler of the effect, outside, is asked. */
+  private record Pass<F, S, B, R>() implements Case<F, S, B, R> {
+    private static final Pass<Object, Object, Object, Object> ONE = new Pass<>();
+  }
+
   /** What a case holds, for the operation asked: the case was made for that very one. */
   private static <T> T made(Object made, Object asked, T held) {
     if (made != asked) throw new IllegalStateException("a clause made for " + made + ", asked was " + asked);
@@ -180,6 +185,14 @@ public final class Fx {
   public static <F, B, R> Handler<F, B, B, R> handling(Class<F> effect, Function<F, Case<F, Void, B, R>> cases) {
     return folding(effect, null, (none, b) -> b, cases);
   }
+
+  /**
+   * Not this handler's own: the operation goes on to the next handler of the effect, outside this one, as if this
+   * one were not there. It is how a handler answers only some operations of its effect — those of its own key,
+   * its own cell, its own name — and how two handlers of one effect, one inside the other, each answer theirs.
+   */
+  @SuppressWarnings("unchecked")
+  public static <F, S, B, R> Case<F, S, B, R> pass() { return (Case<F, S, B, R>) (Case<?, ?, ?, ?>) Pass.ONE; }
 
   /** A clause for any operation of the effect, which can only leave the part: with this value. */
   public static <F, S, B, R> Case<F, S, B, R> leave(B value) {
@@ -524,13 +537,16 @@ public final class Fx {
       if (see != null) see.accept(op);
       Around<?, Z> own = around;
       while (own instanceof In<?, ?, ?, ?, ?, ?, Z> part) {
-        if (part.handler.effect.isInstance(op)) return answer(part, asks, op, at, rest, around);
+        if (part.handler.effect.isInstance(op)) {
+          At<Z> next = answer(part, asks, op, at, rest, around);
+          if (next != null) return next;                // none: the operation is not that handler's own
+        }
         own = part.outer;
       }
       throw new IllegalStateException("no handler for " + op);
     }
 
-    /** This part answers: the operation is of its handler's effect. */
+    /** This part answers: the operation is of its handler's effect. Or none, where the handler passes it. */
     private <F, S, P, B, R, W, X, A, Y> At<Z> answer(In<F, S, P, B, R, W, Z> own, Asks<X, A> asks, Op<X, ?> op,
                                                      Run<A, Y, Z> at, Rest<A, Y> rest, Around<Y, Z> around) {
       switch (own.handler.cases.apply(own.handler.of(op))) {
@@ -556,6 +572,9 @@ public final class Fx {
           // The rest is taken off, with its parts: they are the rest's now, and run by no one. The clause is a
           // program of what is around that part; under it, a mark: was the rest gone on with.
           return new Run<>(does, takes instanceof Keep ? own.rest : new Taken<>(k, own.rest), own.outer);
+        }
+        case Pass<F, S, B, R> notItsOwn -> {
+          return null;
         }
       }
     }

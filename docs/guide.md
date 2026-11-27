@@ -96,10 +96,10 @@ of each other, a stack of 256k and a heap of 64m).
 
 ```java
 static <R extends State<Long>> Comp<Boolean, R> even(long n) {
-  return n == 0 ? pure(true) : Std.<Long, R>update(count -> count + 1).flatMap(x -> odd(n - 1));
+  return n == 0 ? pure(true) : update(STEPS, count -> count + 1).flatMap(x -> odd(n - 1));
 }
 static <R extends State<Long>> Comp<Boolean, R> odd(long n) {
-  return n == 0 ? pure(false) : Std.<Long, R>update(count -> count + 1).flatMap(x -> even(n - 1));
+  return n == 0 ? pure(false) : update(STEPS, count -> count + 1).flatMap(x -> even(n - 1));
 }
 ```
 
@@ -417,10 +417,31 @@ are written with nothing but what this guide has shown, and are patterns for you
 
 | Effect | Asked with | Handler | The part gives |
 |---|---|---|---|
-| `State<S>` | `get()`, `put(s)`, `update(f)` | `state(initial)` | `Final<S, A>` |
-| `Fail<E>` | `fail(error)` | `option(E.class)`, `result(E.class)` | `Optional<A>`, `Result<E, A>` |
-| `Emit<X>` | `tell(item)` | `told(X.class)` | `Told<X, A>` |
-| `Env<E>` | `ask()` | `env(value)` | `A` |
+| `State<S>` | `get(key)`, `put(key, s)`, `update(key, f)` | `state(key, initial)` | `Final<S, A>` |
+| `Fail<E>` | `fail(key, error)` | `option(key)`, `result(key)` | `Optional<A>`, `Result<E, A>` |
+| `Emit<X>` | `tell(key, item)` | `told(key)` | `Told<X, A>` |
+| `Env<E>` | `ask(key)` | `env(key, value)` | `A` |
+
+The first four are asked with a **key**, which says which state, which failure, which stream, which thing
+given:
+
+```java
+static final Key<Integer> COUNT = key("count");
+
+static <R extends State<Integer>> Comp<String, R> counted() {
+  return update(COUNT, n -> n + 1).flatMap(x -> update(COUNT, n -> n * 10))
+      .flatMap(x -> get(COUNT)).map(n -> "at " + n);
+}
+
+run(Fx.<Final<Integer, String>>top().handler(state(COUNT, 0)).handle(counted()));   // Final[state=10, value=at 10]
+```
+
+A handler answers the operations of its own key and passes the others to the next handler of the effect
+outside (`pass()`). That is what a key is for: an effect with a type argument is one effect to the machine,
+whatever the argument, and without a key a handler of `State<String>` put by a method around a part it knows
+nothing of would answer that part's `State<Integer>` — with a `String`. With keys each answers its own
+(`StdTest.aStatePutAroundAPartDoesNotAnswerThePartsOwn`), two states of one type live side by side
+(`twoStatesOfOneType`), and javac has the type from the key: nothing is said at `update(COUNT, ..)`.
 | `Choice` | `choose(options)` | `all()` | `List<A>` |
 | `Async` | `await(start)`, `awaitAll(starts)` | `blocking()`; or `start(program)` | `A`; a `CompletableFuture<A>` |
 
@@ -428,11 +449,11 @@ The order of two handlers is meaning. A failure inside a state keeps the state; 
 lost with the part (`StdTest.theOrderOfTwoHandlersIsTheOrderOfTwoMonads`):
 
 ```java
-run(Fx.<Final<Integer, Result<String, String>>>top().handler(state(0)).handler(result(String.class))
+run(Fx.<Final<Integer, Result<String, String>>>top().handler(state(COUNT, 0)).handler(result(ODD))
     .handle(countThenFail()));
 // Final[state=1, value=Failed[error=no]]
 
-run(Fx.<Result<String, Final<Integer, String>>>top().handler(result(String.class)).handler(state(0))
+run(Fx.<Result<String, Final<Integer, String>>>top().handler(result(ODD)).handler(state(COUNT, 0))
     .handle(countThenFail()));
 // Failed[error=no]
 ```
@@ -454,12 +475,12 @@ written as a recursion each time:
 ```java
 static <R extends State<Integer> & Emit<String>> Comp<Integer, R> basket(List<String> items) {
   return Std.<String, R>forEach(items, StdTest::<R>take)
-      .flatMap(x -> Std.<Integer, R>get())
-      .flatMap(sum -> Std.<R>when(sum > 5, tell("heavy")).map(x -> sum));
+      .flatMap(x -> get(COUNT))
+      .flatMap(sum -> Std.<R>when(sum > 5, tell(LOG, "heavy")).map(x -> sum));
 }
 
 static <R extends State<Integer> & Emit<String>> Comp<Void, R> take(String item) {
-  return zip(tell("took " + item), update((Integer n) -> n + item.length()), (told, counted) -> null);
+  return zip(tell(LOG, "took " + item), update(COUNT, n -> n + item.length()), (told, counted) -> null);
 }
 ```
 
@@ -467,10 +488,7 @@ Each is a program: nothing of a body is run when it is made, and a long loop tak
 less than the whole does (`length` only tells; `lengths` also has a state). Under a rest gone on with twice
 each way goes through the items from where it was, with what it had collected (`StdTest.aLoopInEveryWay`).
 Where one of them is what a method returns, javac infers its types; where a chain begins with it, they are
-said, as with the effects below.
-
-These effects have type arguments, and that costs one thing: where a chain begins with one of them, the types
-are said — `Std.<Integer, R>update(n -> n + 1).flatMap(..)`.
+said: `Std.<String, R>forEach(..).flatMap(..)`.
 
 ## 12. An entry point of an application
 
@@ -548,7 +566,8 @@ Three things a test can check that a mock cannot easily:
   inferred, which cannot be written.
 - A row of several effects cannot be written as a type argument — `Fx.<Stock & Clock, A>row()` is not Java.
   Put the handlers in a method whose type variable is that row: `<R extends Stock & Clock>`.
-- A handler is found by its effect's class. An effect with type arguments is one effect whatever they are.
+- A handler is found by its effect's class. An effect with type arguments is one effect whatever they are: give
+  its operations a key and let its handler `pass()` what is not its own, as `Std`'s do.
 - Mutable state captured by a handler is shared by every way of a rest gone on with twice. The handler's own
   state — the second argument of `folding` — is not.
 - Do not keep a `k` past its clause — unless the clause is made with `keep`, which is for that

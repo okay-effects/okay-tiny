@@ -58,12 +58,12 @@ class DirectTest {
   @Test
   void twoDollarsInOneExpressionAndNoTypesSaid() {
     assertEquals(new Told<>(List.of("counting tea"), new Final<>(13, 26)),
-        run(Fx.<Told<String, Final<Integer, Integer>>>top().handler(told(String.class)).handler(state(10))
+        run(Fx.<Told<String, Final<Integer, Integer>>>top().handler(told(LOG)).handler(state(COUNT, 10))
             .handle(counted("tea"))));
   }
 
   Told<String, Final<Integer, String>> branched(int n) {
-    return run(Fx.<Told<String, Final<Integer, String>>>top().handler(told(String.class)).handler(state(7))
+    return run(Fx.<Told<String, Final<Integer, String>>>top().handler(told(LOG)).handler(state(COUNT, 7))
         .handle(branches(n)));
   }
 
@@ -77,7 +77,7 @@ class DirectTest {
   /** Two methods that call each other in the tail, a million times each: 256k of stack, 64m of heap. */
   @Test
   void aCallInTheTailTakesNeitherStackNorHeap() {
-    assertEquals(new Final<>(2_000_000L, true), run(Fx.<Final<Long, Boolean>>top().handler(state(0L))
+    assertEquals(new Final<>(2_000_000L, true), run(Fx.<Final<Long, Boolean>>top().handler(state(STEPS, 0L))
         .handle(even(2_000_000))));
   }
 

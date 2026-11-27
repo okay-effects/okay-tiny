@@ -11,6 +11,10 @@ import java.util.List;
 final class Programs {
   private Programs() {}
 
+  static final Key<Integer> COUNT = key("count");
+  static final Key<Long> STEPS = key("steps");
+  static final Key<String> LOG = key("log");
+
   sealed interface Stock {
     record Reserve(String sku, int qty) implements Stock, Op<Boolean, Stock> {}
     record Price(String sku) implements Stock, Op<Integer, Stock> {}
@@ -41,10 +45,10 @@ final class Programs {
   /** Two $ in one expression, in the order written; a state with no types said. */
   @Direct
   static <R extends State<Integer> & Emit<String>> Comp<Integer, R> counted(String word) {
-    $(tell("counting " + word));
-    Integer before = $(get());
-    $(put(before + word.length()));
-    int twice = $(get()) + $(get());
+    $(tell(LOG, "counting " + word));
+    Integer before = $(get(COUNT));
+    $(put(COUNT, before + word.length()));
+    int twice = $(get(COUNT)) + $(get(COUNT));
     return pure(twice);
   }
 
@@ -52,14 +56,14 @@ final class Programs {
   @Direct
   static <R extends State<Integer> & Emit<String>> Comp<String, R> branches(int n) {
     if (n < 0) {
-      $(tell("negative"));
+      $(tell(LOG, "negative"));
       return pure("refused");
     } else if (n == 0) {
-      $(tell("zero"));
+      $(tell(LOG, "zero"));
     } else {
-      $(put(n));
+      $(put(COUNT, n));
     }
-    Integer now = $(get());
+    Integer now = $(get(COUNT));
     return pure("state " + now);
   }
 
@@ -78,7 +82,7 @@ final class Programs {
     return even(n - 1);
   }
 
-  static <R extends State<Long>> Comp<Void, R> bump() { return update((Long count) -> count + 1); }
+  static <R extends State<Long>> Comp<Void, R> bump() { return update(STEPS, count -> count + 1); }
 
   /** try-finally is ensuring; a block; a value that is not used. */
   @Direct

@@ -17,6 +17,9 @@ import org.junit.jupiter.api.Test;
 
 /** What the kernel does, a scenario each: the programs and the handlers are Shop's. */
 class ScenariosTest {
+  static final Std.Key<Integer> LEVEL = Std.key("level"), GIVEN = Std.key("given");
+  static final Std.Key<String> TOLD = Std.key("told");
+
   final Map<String, Integer> left = Map.of("tea", 5, "cup", 1);
   final Cart good = new Cart("a@b.c", List.of(new Line("tea", 2), new Line("cup", 1)));
   final Cart bad = new Cart(null, List.of(new Line("tea", 9), new Line("cup", 1), new Line("pot", 1)));
@@ -302,15 +305,15 @@ class ScenariosTest {
   /** A state handler put anew at every level, and at the bottom a choice of the handler around them all. */
   static <R extends Std.Choice> Comp<Integer, R> deep(int level) {
     if (level == 0) return Std.choose(List.of(1, 2));
-    Comp<Integer, R> inside = Fx.<R, Std.Final<Integer, Void>>row().handler(Std.<Integer, Void, R>state(level))
+    Comp<Integer, R> inside = Fx.<R, Std.Final<Integer, Void>>row().handler(Std.<Integer, Void, R>state(LEVEL, level))
         .handle(Tower.level(level)).map(Std.Final::state);
-    return inside.flatMap(sum -> Fx.<R, Integer>row().handler(Std.<Integer, Integer, R>env(sum))
-        .handle(Std.ask()));                           // and a part more, put after the rest has gone on
+    return inside.flatMap(sum -> Fx.<R, Integer>row().handler(Std.<Integer, Integer, R>env(GIVEN, sum))
+        .handle(Std.ask(GIVEN)));                           // and a part more, put after the rest has gone on
   }
 
   interface Tower {
     static <R extends Std.Choice & Std.State<Integer>> Comp<Void, R> level(int level) {
-      return ScenariosTest.<R>deep(level - 1).flatMap(below -> Std.<Integer, R>update(own -> own + below));
+      return ScenariosTest.<R>deep(level - 1).flatMap(below -> Std.update(LEVEL, own -> own + below));
     }
   }
 
@@ -326,7 +329,7 @@ class ScenariosTest {
 
   static <R> Comp<Long, R> under(int levels) {
     return levels == 0 ? pure(0L) : defer(() ->
-        Fx.<R, Long>row().handler(Std.<Integer, Long, R>env(1)).handle(ScenariosTest.<R>under(levels - 1)));
+        Fx.<R, Long>row().handler(Std.<Integer, Long, R>env(GIVEN, 1)).handle(ScenariosTest.<R>under(levels - 1)));
   }
 
   /** And a part more costs the same however deep it is: three hundred thousand, one in another. */
@@ -337,11 +340,11 @@ class ScenariosTest {
 
   /** Three parts one in another, each with a state of its own, and nothing else. */
   static Comp<Integer, Object> threeParts() {
-    Comp<Integer, Object> inner = Fx.<Std.Final<Integer, Integer>>top().handler(Std.state(300))
-        .handle(Std.<Integer, Std.State<Integer>>get()).map(Std.Final::state);
-    Comp<Integer, Object> middle = Fx.<Std.Final<Integer, Integer>>top().handler(Std.state(200))
+    Comp<Integer, Object> inner = Fx.<Std.Final<Integer, Integer>>top().handler(Std.state(LEVEL, 300))
+        .handle(Std.get(LEVEL)).map(Std.Final::state);
+    Comp<Integer, Object> middle = Fx.<Std.Final<Integer, Integer>>top().handler(Std.state(LEVEL, 200))
         .handle(inner).map(Std.Final::state);
-    return Fx.<Std.Final<Integer, Integer>>top().handler(Std.state(100)).handle(middle).map(Std.Final::state);
+    return Fx.<Std.Final<Integer, Integer>>top().handler(Std.state(LEVEL, 100)).handle(middle).map(Std.Final::state);
   }
 
   /** A clock whose clause runs parts of its own before it goes on with the rest. */
@@ -352,16 +355,16 @@ class ScenariosTest {
   }
 
   static <R extends Clock & Std.Emit<String> & Std.State<Integer>> Comp<String, R> toldAroundTheClock() {
-    return Std.<String, R>tell("before").flatMap(x -> perform(new Clock.Now()))
-        .flatMap(at -> Std.<String, R>tell("at " + at)).map(x -> "done");
+    return Std.tell(TOLD, "before").flatMap(x -> perform(new Clock.Now()))
+        .flatMap(at -> Std.tell(TOLD, "at " + at)).map(x -> "done");
   }
 
   /** What a clause runs before it goes on does not reach the states of the rest it was given. */
   @Test
   void theStatesOfARestTakenOffAreItsOwn() {
     assertEquals(new Std.Told<>(List.of("before", "at 7"), new Std.Final<>(0, "done")),
-        run(Fx.<Std.Told<String, Std.Final<Integer, String>>>top().handler(busyClock()).handler(Std.told(String.class))
-            .handler(Std.state(0))
+        run(Fx.<Std.Told<String, Std.Final<Integer, String>>>top().handler(busyClock()).handler(Std.told(TOLD))
+            .handler(Std.state(LEVEL, 0))
             .handle(toldAroundTheClock())));
   }
 

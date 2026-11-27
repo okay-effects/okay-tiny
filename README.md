@@ -1,6 +1,6 @@
 # okay-tiny
 
-Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 408 lines of code, no
+Algebraic effects for Java 21 in one file: [`Fx.java`](src/main/java/okay/tiny/Fx.java), 419 lines of code, no
 dependency, no threads, no reflection, no bytecode tricks. It is meant to be read in an hour and copied into a code
 base that will not take a library.
 
@@ -72,6 +72,7 @@ be read and owned. `Std.java` is a second, with the usual effects.
 | `on(op, (state, k) -> ..)` | a clause: `k.apply(answer, nextState)` goes on with the rest — once, twice, or never |
 | `answer(op, value)` | the usual clause: answered where it is asked |
 | `leave(value)` | a clause for any operation of the effect: the part is left, with the value |
+| `pass()` | not this handler's own: the next handler of the effect, outside, is asked |
 | `handling(Effect.class, op -> switch (op) { .. })` | a handler with no state that gives what its part gives |
 | `ensuring(part, after)` | `after` runs when the part ends: with a value, left by a clause, or by an exception |
 | `Fx.<R, B>row().handler(outer).handler(inner).handle(part)` | handlers around a part of a program, the outermost first; `B` is what the whole gives, the row `R` is left |
@@ -89,17 +90,21 @@ a value, never replayed). Its state is a value too: a rest gone on with twice ha
 
 ## The usual effects
 
-[`Std.java`](src/main/java/okay/tiny/Std.java), 212 lines beside the kernel and written only with what it gives:
+[`Std.java`](src/main/java/okay/tiny/Std.java), 224 lines beside the kernel and written only with what it gives:
 each effect with the handler that is its monad.
 
 | Effect | Asked with | Handler | The part gives |
 |---|---|---|---|
-| `State<S>` | `get()`, `put(s)`, `update(f)` | `state(initial)` | `Final<S, A>`: the last state and the value |
-| `Fail<E>` | `fail(error)` | `option(E.class)`, `result(E.class)` | `Optional<A>`; `Result<E, A>` |
-| `Emit<X>` | `tell(item)` | `told(X.class)` | `Told<X, A>`: what was told and the value |
-| `Env<E>` | `ask()` | `env(value)` | `A` |
+| `State<S>` | `get(key)`, `put(key, s)`, `update(key, f)` | `state(key, initial)` | `Final<S, A>`: the last state and the value |
+| `Fail<E>` | `fail(key, error)` | `option(key)`, `result(key)` | `Optional<A>`; `Result<E, A>` |
+| `Emit<X>` | `tell(key, item)` | `told(key)` | `Told<X, A>`: what was told and the value |
+| `Env<E>` | `ask(key)` | `env(key, value)` | `A` |
 | `Choice` | `choose(options)` | `all()` | `List<A>`: every way |
 | `Async` | `await(start)`, `awaitAll(starts)` | `blocking()`; or `start(program)` | `A`; a `CompletableFuture<A>` |
+
+The first four are asked with a key — `static final Key<Integer> COUNT = key("count")` — and a handler answers
+the operations of its own key and passes the others on: two states in one program, and a state put by a method
+around a part it knows nothing of, each answer their own.
 
 And the usual shapes of a program, so that a loop is not a recursion each time: `forEach`, `collect`, `fold`,
 `iterate`, `when`, `zip`.

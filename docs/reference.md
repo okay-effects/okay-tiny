@@ -38,6 +38,7 @@ Everything `okay.tiny.Fx` and `okay.tiny.Std` have. The [guide](guide.md) explai
 | `on(op, (state, k) -> ..)` | the clause for the operation matched; `k.apply(answer, nextState)` goes on with the rest |
 | `answer(op, value)` | `on(op, (s, k) -> k.apply(value, s))`, answered where it is asked |
 | `leave(value)` | a clause for any operation of the effect: the part is left, the handler gives `value` |
+| `pass()` | not this handler's own: the operation goes on to the next handler of the effect outside this one, as if this one were not there |
 | `keep(op, (state, k) -> ..)` | `on` for a clause that keeps `k` to go on with it after the clause has ended, in a run of its own: the rest is not closed when the clause ends |
 
 A clause may: apply `k` once (answer); not apply it (the part is left with the clause's own value, and `ret` is
@@ -67,10 +68,10 @@ handler there with `row()`.
 
 | Effect | Operations | Functions | Handlers |
 |---|---|---|---|
-| `State<S>` | `Get`, `Put` | `get()`, `put(s)`, `update(f)` | `state(initial)`: `Handler<State<S>, A, Final<S, A>, R>` |
-| `Fail<E>` | `Raise` | `fail(error)`, of any type | `option()`, `option(E.class)`: `Optional<A>`; `result()`, `result(E.class)`: `Result<E, A>` |
-| `Emit<X>` | `Tell` | `tell(item)` | `told()`, `told(X.class)`: `Told<X, A>` |
-| `Env<E>` | `Ask` | `ask()` | `env(value)`: `A` |
+| `State<S>` | `Get`, `Put` | `get(key)`, `put(key, s)`, `update(key, f)` | `state(key, initial)`: `Handler<State<S>, A, Final<S, A>, R>` |
+| `Fail<E>` | `Raise` | `fail(key, error)`, of any type | `option(key)`: `Optional<A>`; `result(key)`: `Result<E, A>` |
+| `Emit<X>` | `Tell` | `tell(key, item)` | `told(key)`: `Told<X, A>` |
+| `Env<E>` | `Ask` | `ask(key)` | `env(key, value)`: `A` |
 | `Choice` | `Of<X>` | `choose(options)` | `all()`: `List<A>` |
 | `Async` | `Await<X>` | `await(start)`, `awaitAll(starts)` | `blocking()`: `A`; `start(program)`, `start(program, see)`: runs a `Comp<A, Async>`, gives a `CompletableFuture<A>` |
 
@@ -86,7 +87,9 @@ handler there with `row()`.
 Items are any `Iterable`, read once into a list when the program is made. A body's row may be less than `R`.
 
 `Final<S, A>(state, value)`, `Told<X, A>(items, value)`, `Result<E, A>` = `Ok(value)` or `Failed(error)`.
-A handler that takes a class does so only to name a type javac cannot infer where the handler is put.
+`Key<T>`, made by `key(name)`: which state, which failure, which stream, which thing given. The operations of a
+key are answered by the handler put with that key; a handler passes the others on. A key is of one type, so
+the type an operation is answered with is the type its handler holds.
 
 ## What javac refuses
 
