@@ -75,6 +75,18 @@ public class StateBench {
         .handler(clockAt(1)).handler(first()).handle(ticks(N)));
   }
 
+  // the same state outside four other effects said of a template: a search through handlers found by what an
+  // operation says it is of
+  interface One { Std.Env<Integer, One> env = Std.Env.of(One.class); }
+  interface Two { Std.Env<Integer, Two> env = Std.Env.of(Two.class); }
+  interface Three { Std.Env<Integer, Three> env = Std.Env.of(Three.class); }
+  interface Four { Std.Env<Integer, Four> env = Std.Env.of(Four.class); }
+
+  @Benchmark public Object templateOutermostOfFiveTemplates() {
+    return run(Fx.<Std.Final<Integer, Integer>>top().handler(Tick.state.from(0)).handler(One.env.given(1))
+        .handler(Two.env.given(2)).handler(Three.env.given(3)).handler(Four.env.given(4)).handle(ticks(N)));
+  }
+
   // the template's program, with the effect written by hand and found by its class
   sealed interface Cell {
     record Get() implements Cell, Fx.Op<Integer, Cell> {}

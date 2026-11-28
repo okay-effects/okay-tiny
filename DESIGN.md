@@ -154,6 +154,7 @@ a stack of steps: steps are `Rest<A, Y>`, from a value of `A` to the value of th
 | the effect's class read from an empty varargs array | see above |
 | the machine as one loop over variables of type `Object` — the program, the value, the steps, the parts — with casts where a hidden type was opened | a trampoline of typed moves over `At<Z>`. A state costs the same or less; an operation answered in place 6.0 ns, not 5.0 (section 5 says of what); 118 lines more |
 | the typed moves calling each other, the three put down in fields every 32 calls | a call stack as the mechanism; the trampoline needs no fields and reads nothing on trust |
+| one interface for which operations are a handler's own — `Own<O, F>`, a function from any operation to it as the clauses take it, or none — in place of `Op.of()`, `Template` and the two kinds of finding; `Op` a marker with no method, the templates an ordinary use of the kernel | a handler found by an object then asks every operation what it says, at every part it is not of: a state outside four other effects of templates cost 23 ns an operation, not 15.5 (`StateBench.templateOutermostOfFiveTemplates`), and every other lane 0.5 to 3 ns more. `of()` is asked once an operation, and a miss is one comparison |
 | `Std`'s state, failure, stream and given as generic effects found by their class — `get()`, `state(0)`, `option(String.class)` | templates, and effects said of them (section 2): found by class alone, a handler of one type answered another's |
 | a clause as one record for its four kinds (`answer`, `on`, `keep`, `leave`), with fields left empty and a flag | a sealed type of four records, each with what it needs: `leave` has no operation and no answer's type. An operation answered in place costs the same; one whose clause takes the rest, the same to 2 ns more |
 | a step as one record with flags (`mapped`) and a mark of type `Object`; `Case` and `Handler` as classes with `Object` fields | each is a sealed type over records now, the hidden type an existential inside: fewer casts, and the step 2 to 6 ns an operation faster |
@@ -172,9 +173,10 @@ JMH 1.37, Temurin 21, Apple silicon; ns an operation, each ± under 0.5 (`./grad
 | a counter (a state that moves on at every operation), alone | 7.5 |
 | the counter the innermost of seven | 7.6 |
 | the counter the outermost of three | 11.7 |
-| the counter the outermost of seven | 16.1 |
-| a state said of `Std`'s template, alone | 11.9 |
-| that state the outermost of seven | 14.6 |
+| the counter the outermost of seven | 15.6 |
+| a state said of `Std`'s template, alone | 13.0 |
+| that state the outermost of seven | 13.8 |
+| that state outside four other effects said of templates | 15.5 |
 
 A free monad makes five or six small objects for an operation; that is the floor. Next to a query to a database
 it is nothing. `ensuring` and the note of where a program failed cost one to two of these nanoseconds: a mark
