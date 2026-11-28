@@ -273,32 +273,44 @@ public final class Fx {
     private void left(Throwable thrown) { close(steps, top, own, thrown); }
   }
 
-  /** Closes what these steps were to close, and then those of the parts from `from` out to `until`, not of it. */
+  /**
+   * Closes what these steps were to close, and then those of the parts from `from` out to `until`, not of it:
+   * every one of them, whatever another throws. What closing throws is added to `thrown`; with none, the first
+   * is thrown on when all are closed, the others added to it.
+   */
   private static void close(Rest<?, ?> steps, Around<?, ?> from, Around<?, ?> until, Throwable thrown) {
-    close(steps, thrown);
+    Throwable first = closing(steps, thrown);
     for (Around<?, ?> at = from; at != until && at instanceof In<?, ?, ?, ?, ?, ?, ?> part; at = part.outer) {
-      close(part.rest, thrown);
+      Throwable next = closing(part.rest, thrown != null ? thrown : first);
+      if (first == null) first = next;
     }
+    if (first instanceof Error error) throw error;
+    if (first != null) throw (RuntimeException) first;      // a mark is a Runnable: it throws nothing else
   }
 
-  /** Closes what these steps were to close; under an exception, what closing throws is added to it. */
-  private static void close(Rest<?, ?> steps, Throwable thrown) {
-    while (!(steps instanceof End)) {
-      try {
-        switch (steps) {
-          case Then<?, ?, ?> step -> steps = step.after;
-          case Mapping<?, ?, ?> step -> steps = step.after;
-          case Mark<?, ?> mark -> {
-            steps = mark.after();
-            mark.ended(thrown);
-          }
-          case End<?> end -> { }
+  /** What closing these steps threw first, where there was no exception to add it to; else none. */
+  private static Throwable closing(Rest<?, ?> steps, Throwable thrown) {
+    Throwable first = null;
+    for (Rest<?, ?> at = steps; !(at instanceof End); at = after(at)) {
+      if (at instanceof Mark<?, ?> mark) {
+        Throwable under = thrown != null ? thrown : first;
+        try {
+          mark.ended(under);
+        } catch (RuntimeException | Error inClosing) {
+          if (under != null) under.addSuppressed(inClosing); else first = inClosing;
         }
-      } catch (Throwable inClosing) {
-        if (thrown == null) throw inClosing;
-        thrown.addSuppressed(inClosing);
       }
     }
+    return first;
+  }
+
+  private static Rest<?, ?> after(Rest<?, ?> step) {
+    return switch (step) {
+      case Then<?, ?, ?> then -> then.after;
+      case Mapping<?, ?, ?> mapping -> mapping.after;
+      case Mark<?, ?> mark -> mark.after();
+      case End<?> end -> end;
+    };
   }
 
   /**
@@ -547,7 +559,7 @@ public final class Fx {
       return switch (own.cases.of(asks.op())) {
         case Answer<?, F, S, B, R> answer -> answered(answer, asks, rest, around, more);
         case With<?, F, S, B, R> with -> taken(own, with, asks, rest, around, more);
-        case Leave<F, S, B, R> leave -> left(own, leave.value, asks, rest, around);
+        case Leave<F, S, B, R> leave -> left(own, leave.value, rest, around);
       };
     }
 
@@ -580,11 +592,16 @@ public final class Fx {
       return new Run<>(does, with instanceof Keep ? own.rest : new Taken<>(k, own.rest), own.outer);
     }
 
-    /** The part is left with a value: the rest is taken off, and nothing goes on with it. */
-    private <X, F, S, P, B, R, W, A, Y> At<Z> left(In<F, S, P, B, R, W, Z> own, B value, Asks<X, A> asks,
-                                                   Rest<A, Y> rest, Around<Y, Z> around) {
-      K<X, A, Y, S, B, R> k = new K<>(asks, rest, around, own);
-      return new Run<>(new Pure<B, R>(value), new Taken<>(k, own.rest), own.outer);
+    /**
+     * The part is left with a value: its rest, to the end of the handler's part, is closed here and now, and the
+     * value goes on below that part. No rest is made: no one could go on with it.
+     */
+    private <S, B, W, Y> At<Z> left(In<?, S, ?, B, ?, W, Z> own, B value, Rest<?, Y> rest, Around<Y, Z> around) {
+      At<Z> next = new Give<>(value, own.rest, own.outer);
+      failed = next;                                    // should closing fail, what it closed is not closed again
+      Fx.close(rest, around, own, null);
+      failed = null;
+      return next;
     }
 
     private <X, S, B, Y> At<Z> resume(Resume<X, S, B, ?> on, Rest<B, Y> rest, Around<Y, Z> around) {

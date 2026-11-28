@@ -224,6 +224,27 @@ class ScenariosTest {
     assertEquals(List.of("closed", "after"), log);
   }
 
+  /** A part left, by leave or by a clause that does not go on: one closing that fails keeps no other from closing. */
+  @Test
+  void aClosingThatFailsKeepsNoOtherFromClosing() {
+    Handler<Refusal, String, String, Object> notGoingOn = folding(Refusal.class, null, (s, a) -> a, op -> switch (op) {
+      case Refusal.Invalid invalid -> on(invalid, (s, k) -> pure("left"));
+    });
+    Handler<Refusal, String, String, Object> leaves = folding(Refusal.class, null, (s, a) -> a, op -> leave("left"));
+    for (Handler<Refusal, String, String, Object> handler : List.of(leaves, notGoingOn)) {
+      var log = new ArrayList<String>();
+      Comp<String, Refusal> opened = ensuring(
+          ensuring(perform(new Refusal.Invalid("f", "w")).map(v -> "never"), () -> {
+            log.add("inner");
+            throw new IllegalStateException("the inner closing fails");
+          }),
+          () -> log.add("outer"));
+      Comp<String, Object> around = ensuring(Fx.<String>top().handler(handler).handle(opened), () -> log.add("around"));
+      assertEquals("the inner closing fails", assertThrows(IllegalStateException.class, () -> run(around)).getMessage());
+      assertEquals(List.of("inner", "outer", "around"), log);
+    }
+  }
+
   /** Thrown on as it is, with a note of where the program was. */
   @Test
   void whatIsToBeClosedIsClosedUnderAnException() {

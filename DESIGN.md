@@ -1,6 +1,6 @@
 # The design, and why
 
-The kernel is `src/main/java/okay/tiny/Fx.java`, 388 lines of code. This page records what was decided, what in
+The kernel is `src/main/java/okay/tiny/Fx.java`, 398 lines of code. This page records what was decided, what in
 Java forced the shape of it, what was tried and left, and what an operation costs — so that none of it has to be
 found again.
 
@@ -121,7 +121,8 @@ a stack of steps: steps are `Rest<A, Y>`, from a value of `A` to the value of th
 ## 3a. Leaving, closing, failing
 
 - `leave(value)` is a clause for any operation of its effect. It has no operation to read the answer's type
-  from, so it cannot go on with the rest: it only leaves the part.
+  from, so it cannot go on with the rest: it only leaves the part. No rest is made for it: what the part was
+  to close is closed there and then, and the value goes on below.
 - `ensuring(part, after)` puts a mark among the steps. The value passes it and `after` is run: the part has ended.
   When a clause is given the rest, a mark with that rest is put under the clause; when the clause ends and the
   rest was never gone on with, it was left, and the marks in it are run, the innermost first. A clause that only
@@ -265,6 +266,12 @@ between the test for it and the giving, the rest ran inside the clause, a run in
 ends quickly the stack only grew — measured, 27 frames at a wait became 86 to 888 over twenty thousand
 waits, and a `StackOverflowError` in a stack of 256k. The clause now tells that case and goes on with the
 rest as a program of its own run: 27 to 31 frames, however many waits.
+
+**Every closing is done, whatever another throws.** Where a part was left — by `leave`, or by a clause that
+did not go on with its rest — the first closing that threw stopped the others of that rest: an `ensuring`
+around one that failed was never run (`ScenariosTest.aClosingThatFailsKeepsNoOtherFromClosing`). Closing
+goes through every mark now; what the first throws is thrown on when all are closed, the others added to it.
+And it cannot go round for ever on steps that are not there, as it once did on a rest without its steps.
 
 ## 6. What is not here
 
